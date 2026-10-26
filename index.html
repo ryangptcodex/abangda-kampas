@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Toko Abangda - Kebutuhan Harian Lebih Mudah</title>
+  
+  <!-- CSS dan font -->
+
+  
+  <!-- Fallback CDN untuk Preview Langsung di Canvas / Browser Lokal -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <script>
+    if (typeof tailwind !== 'undefined') {
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                blue: '#0284c7',
+                darkblue: '#0369a1',
+                yellow: '#facc15',
+                accent: '#eab308'
+              }
+            },
+            fontFamily: {
+              sans: ['"Montserrat"', 'sans-serif'],
+              montserrat: ['"Montserrat"', 'sans-serif']
+            }
+          }
+        }
+      };
+    }
+  </script>
+  <style>
+    body, input, button, select, textarea { font-family: 'Montserrat', sans-serif !important; }
+    .fa, .fas, .fa-solid, .far, .fa-regular { font-family: "Font Awesome 6 Free" !important; }
+    .fab, .fa-brands { font-family: "Font Awesome 6 Brands" !important; }
+    body { background-color: #f8fafc; }
+    .hidden { display: none !important; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="text-slate-800 pb-8 select-none">
+
+  <!-- TOP HEADER / NAVBAR (CARD FLOATING BERGAYA IDENTIK DENGAN FOOTER CARD) -->
+  <header class="sticky top-0 z-40 max-w-md mx-auto px-4 pt-3 pb-1">
+    <div class="relative overflow-visible bg-gradient-to-br from-[#0284c7] to-[#0369a1] rounded-3xl p-4 text-white shadow-xl shadow-sky-600/25 border border-sky-400/30">
+      
+      <!-- Baris Atas: Tombol Menu, Identitas Toko, dan Aksi Cepat -->
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <div class="flex items-center gap-2.5">
+          <!-- Tombol Menu Sidebar (Kiri) -->
+          <button onclick="toggleSidebar()" class="p-2 bg-white/15 hover:bg-white/25 rounded-xl text-white text-sm transition active:scale-95 focus:outline-none" title="Buka Menu">
+            <i class="fa-solid fa-bars text-base"></i>
+          </button>
+          
+          <!-- LOGO FORMAT TEKS FULL MONTSERRAT -->
+          <div class="flex flex-col cursor-pointer transition hover:opacity-95" onclick="switchTab('home')" title="Toko Abangda">
+            <h1 id="headerStoreTitle" class="font-extrabold text-xs sm:text-[13px] tracking-wider text-white leading-tight uppercase drop-shadow-sm">
+              TOKO ABANGDA
+            </h1>
+            <p class="text-[10px] font-semibold text-brand-yellow leading-tight tracking-tight mt-0.5">
+              Cari apa? Abangda siapkan.
+            </p>
+          </div>
+        </div>
+        
+        <!-- Top Actions: Katalog & Keranjang Drawer Trigger (Kanan) -->
+        <div class="flex items-center gap-2">
+          <button onclick="switchTab('katalog')" class="p-2 bg-white/15 hover:bg-white/25 rounded-xl text-white text-sm transition active:scale-95" title="Katalog Produk">
+            <i class="fa-solid fa-border-all"></i>
+          </button>
+
+          <!-- Tombol Keranjang: Membuka Drawer dari Kanan -->
+          <button onclick="toggleCartDrawer(true)" class="p-2 bg-white/15 hover:bg-white/25 rounded-xl text-white text-sm relative transition active:scale-95" title="Keranjang Belanja">
+            <i class="fa-solid fa-cart-shopping"></i>
+            <span id="cartBadge" class="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold hidden shadow-sm">0</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- SEARCH BAR (DENGAN LIVE SUGGESTIONS DROPDOWN) -->
+      <div id="customerSearchContainer" class="w-full relative">
+        <div class="relative">
+          <input type="text" id="searchInput" oninput="handleSearchInput()" placeholder="Cari beras, minyak, obat, korek..." class="w-full pl-9 pr-8 py-2 text-xs text-slate-800 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-yellow shadow-inner">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+          <button id="clearSearchBtn" onclick="clearSearchInput()" type="button" class="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 hidden text-xs transition active:scale-95 focus:outline-none">
+            <i class="fa-solid fa-circle-xmark"></i>
+          </button>
+        </div>
+
+        <!-- DROPDOWN SARAN PRODUK (LIVE SUGGESTIONS BOX) -->
+        <div id="searchSuggestionsBox" class="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-50 hidden max-h-64 overflow-y-auto no-scrollbar">
+          <!-- Item saran produk di-render dinamis oleh JavaScript -->
+        </div>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- SIDEBAR NAVIGATION DRAWER (DARI SAMPING KIRI) -->
+  <div id="sidebarOverlay" onclick="toggleSidebar()" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 transition-opacity duration-300 opacity-0 pointer-events-none"></div>
+
+  <aside id="sidebarDrawer" class="fixed top-0 left-0 bottom-0 w-72 bg-white z-50 shadow-2xl -translate-x-full transition-transform duration-300 ease-in-out flex flex-col justify-between overflow-y-auto">
+    <div>
+      <!-- Sidebar Header -->
+      <div class="p-4 bg-gradient-to-br from-[#0284c7] to-[#0369a1] text-white flex items-center justify-between shadow">
+        <div class="flex flex-col cursor-pointer" onclick="navFromSidebar('home')" title="Toko Abangda">
+          <span id="sidebarStoreTitle" class="font-extrabold text-xs sm:text-[13px] tracking-wider text-white leading-tight uppercase">
+            TOKO ABANGDA
+          </span>
+          <span class="text-[10px] font-semibold text-brand-yellow leading-tight tracking-tight mt-0.5">
+            Cari apa? Abangda siapkan.
+          </span>
+        </div>
+        <button onclick="toggleSidebar()" class="w-8 h-8 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center text-white text-sm transition active:scale-95">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Navigation Links -->
+      <div class="p-4 space-y-1.5">
+        <p class="text-[10px] font-bold uppercase text-slate-400 px-3 mb-1 tracking-wider">Navigasi Utama</p>
+        <button onclick="navFromSidebar('home')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-100 transition">
+          <i class="fa-solid fa-house text-brand-blue w-4 text-center"></i> Beranda
+        </button>
+        <button onclick="navFromSidebar('katalog')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-100 transition">
+          <i class="fa-solid fa-store text-brand-blue w-4 text-center"></i> Katalog Lengkap
+        </button>
+        <button type="button" onclick="navFromSidebar('caraOrder')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-100 transition">
+          <i class="fa-solid fa-circle-question text-brand-blue w-4 text-center" aria-hidden="true"></i> Cara Order
+        </button>
+        <!-- Navigasi Keranjang dari Sidebar: Otomatis Buka Drawer Kanan -->
+        <button onclick="navFromSidebar('keranjang')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-100 transition">
+          <i class="fa-solid fa-cart-shopping text-brand-blue w-4 text-center"></i> Keranjang Belanja
+        </button>
+        <button onclick="navFromSidebar('lacak')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-100 transition">
+          <i class="fa-solid fa-truck-fast text-brand-blue w-4 text-center"></i> Lacak Status Pesanan
+        </button>
+
+        <div class="border-t border-slate-100 my-2.5"></div>
+
+        <!-- Section 1: Kategori Produk (Accordion Trigger) -->
+        <button type="button" onclick="toggleSidebarAccordion('category')" class="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-700 hover:text-brand-blue hover:bg-slate-50 rounded-xl transition group">
+          <span class="flex items-center gap-2.5">
+            <i class="fa-solid fa-layer-group text-brand-blue text-xs w-4 text-center"></i>
+            <span class="uppercase tracking-wider text-[11px]">Kategori Produk</span>
+          </span>
+          <i id="accordionIconCategory" class="fa-solid fa-chevron-down text-[10px] text-slate-400 group-hover:text-brand-blue transition-transform duration-200"></i>
+        </button>
+        <div id="sidebarCategoryList" class="space-y-1 hidden pl-2 pt-1"></div>
+
+        <div class="border-t border-slate-100 my-2.5"></div>
+
+        <!-- Section 2: Brand Pilihan (Accordion Trigger) -->
+        <button type="button" onclick="toggleSidebarAccordion('brand')" class="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-700 hover:text-brand-blue hover:bg-slate-50 rounded-xl transition group">
+          <span class="flex items-center gap-2.5">
+            <i class="fa-solid fa-tags text-brand-blue text-xs w-4 text-center"></i>
+            <span class="uppercase tracking-wider text-[11px]">Brand Pilihan</span>
+          </span>
+          <i id="accordionIconBrand" class="fa-solid fa-chevron-down text-[10px] text-slate-400 group-hover:text-brand-blue transition-transform duration-200"></i>
+        </button>
+        <div id="sidebarBrandList" class="space-y-1 hidden pl-2 pt-1"></div>
+      </div>
+    </div>
+
+    <!-- Sidebar Footer Info -->
+    <div class="p-4 border-t border-slate-100 text-center">
+      <p id="sidebarFooterStoreName" class="text-[11px] font-semibold text-slate-700">Toko Abangda</p>
+      <p class="text-[10px] text-slate-400">Belanja praktis via WhatsApp</p>
+    </div>
+  </aside>
+
+  <!-- CART DRAWER (SLIDING DARI SAMPING KANAN) -->
+  <div id="cartOverlay" onclick="toggleCartDrawer(false)" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 transition-opacity duration-300 opacity-0 pointer-events-none"></div>
+
+  <aside id="cartDrawer" class="fixed top-0 right-0 bottom-0 w-80 sm:w-96 max-w-[92vw] bg-white z-50 shadow-2xl translate-x-full transition-transform duration-300 ease-in-out flex flex-col justify-between overflow-hidden">
+    
+    <!-- Drawer Header -->
+    <div class="p-4 bg-gradient-to-br from-[#0284c7] to-[#0369a1] text-white flex items-center justify-between shadow">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center text-white text-sm">
+          <i class="fa-solid fa-cart-shopping"></i>
+        </div>
+        <div>
+          <h3 class="font-bold text-xs uppercase tracking-wider">Keranjang Belanja</h3>
+          <p id="cartDrawerSubtitle" class="text-[10px] text-sky-100">0 Produk Dipilih</p>
+        </div>
+      </div>
+      <button onclick="toggleCartDrawer(false)" class="w-8 h-8 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center text-white text-sm transition active:scale-95" title="Tutup Keranjang">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <!-- Drawer Body: Daftar Item Keranjang (Scrollable) -->
+    <div id="cartItemsContainer" class="flex-1 p-4 space-y-2.5 overflow-y-auto no-scrollbar">
+      <!-- Item keranjang akan di-render secara dinamis di sini -->
+    </div>
+
+    <!-- Drawer Footer: Ringkasan Total & Tombol Aksi -->
+    <div id="cartSummaryBox" class="p-4 bg-white border-t border-slate-100 space-y-2.5 shadow-lg hidden">
+      <div class="flex justify-between items-center text-xs">
+        <span class="text-slate-500 font-medium">Subtotal Belanja:</span>
+        <span id="cartTotalPrice" class="font-extrabold text-brand-blue text-sm">Rp 0</span>
+      </div>
+
+      <button onclick="proceedToCheckoutFromDrawer()" class="w-full py-3 bg-brand-blue hover:bg-brand-darkblue text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-md transition active:scale-95 flex items-center justify-center gap-2">
+        <span>Lanjut ke Form Pemesanan</span>
+        <i class="fa-solid fa-arrow-right text-xs"></i>
+      </button>
+      
+      <button onclick="toggleCartDrawer(false)" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-[11px] rounded-xl transition">
+        Lanjut Pilih Produk Lain
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTAINER (MOBILE FIRST) -->
+  <main class="max-w-md mx-auto px-4 py-2">
+
+    <!-- HALAMAN 1: BERANDA (HOME) -->
+    <section id="pageHome" class="space-y-4">
+      <!-- Promo Banners Slider -->
+      <div id="bannerSlider" class="flex overflow-x-auto snap-x snap-mandatory no-scrollbar gap-2 rounded-2xl"></div>
+
+      <!-- Kategori Grid Icon -->
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Kategori Pilihan</h2>
+          <button onclick="switchTab('katalog')" class="text-[11px] text-brand-blue font-semibold hover:underline">Lihat Semua</button>
+        </div>
+        <div id="categoryGrid" class="grid grid-cols-4 gap-2"></div>
+      </div>
+
+      <!-- Produk Unggulan -->
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Produk Unggulan Hari Ini</h2>
+          <button onclick="switchTab('katalog')" class="text-[11px] text-brand-blue font-semibold hover:underline">Semua Produk</button>
+        </div>
+        <div id="homeProductsGrid" class="grid grid-cols-2 gap-2.5"></div>
+      </div>
+    </section>
+
+    <!-- HALAMAN 2: KATALOG LENGKAP -->
+    <section id="pageKatalog" class="space-y-3 hidden">
+      <!-- Active Brand Filter Banner -->
+      <div id="activeBrandBanner" class="hidden flex items-center justify-between bg-sky-50 border border-sky-200 px-3 py-1.5 rounded-xl text-xs text-sky-800">
+        <span class="flex items-center gap-1.5 text-[11px] font-semibold">
+          <i class="fa-solid fa-tag text-brand-blue"></i>
+          <span>Merek: <strong id="activeBrandLabel" class="uppercase"></strong></span>
+        </span>
+        <button onclick="clearBrandFilter()" class="text-sky-600 hover:text-red-500 text-xs font-bold flex items-center gap-1">
+          <span>Reset</span> <i class="fa-solid fa-xmark text-[11px]"></i>
+        </button>
+      </div>
+
+      <!-- Horizontal Filter Pills Kategori -->
+      <div id="filterCategoryPills" class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1"></div>
+
+      <!-- Info Total Produk -->
+      <div class="flex justify-between items-center px-1">
+        <span class="text-[11px] text-slate-500 font-medium">Daftar Produk</span>
+        <span id="catalogCount" class="text-[11px] text-slate-400">Memuat...</span>
+      </div>
+
+      <!-- Grid Produk Katalog -->
+      <div id="catalogProductsGrid" class="grid grid-cols-2 gap-2.5"></div>
+
+      <!-- Loading Scroll Indicator -->
+      <div id="catalogLoadingIndicator" class="text-center py-4 hidden">
+        <i class="fa-solid fa-circle-notch animate-spin text-brand-blue text-lg"></i>
+        <p class="text-[10px] text-slate-400 mt-1">Memuat produk lainnya...</p>
+      </div>
+
+      <!-- End of List Message -->
+      <div id="catalogEndMessage" class="text-center py-4 hidden">
+        <p class="text-[10px] text-slate-400">Semua produk telah ditampilkan.</p>
+      </div>
+    </section>
+
+    <!-- HALAMAN 4: CHECKOUT FORM -->
+    <section id="pageCheckout" class="space-y-3 hidden">
+      <div class="flex items-center gap-2 pb-2 border-b border-slate-200">
+        <button onclick="switchTab('katalog')" class="text-slate-500 hover:text-slate-800" title="Kembali">
+          <i class="fa-solid fa-arrow-left text-sm"></i>
+        </button>
+        <h2 class="text-sm font-bold text-slate-800">Konfirmasi Pemesanan</h2>
+      </div>
+
+      <!-- Ringkasan Produk Pesanan -->
+      <div class="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm space-y-2">
+        <div class="flex items-center justify-between pb-1.5 border-b border-slate-100">
+          <span class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Item Dipesan</span>
+          <button type="button" onclick="toggleCartDrawer(true)" class="text-[10px] text-brand-blue font-semibold hover:underline">
+            <i class="fa-solid fa-pen text-[9px]"></i> Ubah Item
+          </button>
+        </div>
+        <div id="checkoutItemsReview" class="space-y-1.5 max-h-44 overflow-y-auto no-scrollbar"></div>
+      </div>
+
+      <form onsubmit="event.preventDefault(); submitCheckout();" class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-700 mb-1">Nama Pemesan *</label>
+          <input type="text" id="coNama" required placeholder="Contoh: Budi Santoso" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue">
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-700 mb-1">No. WhatsApp *</label>
+          <input type="tel" id="coWa" required placeholder="Contoh: 081234567890" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue">
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-700 mb-1">Metode Pengiriman</label>
+          <select id="coTipe" onchange="toggleAlamatInput()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue bg-white">
+            <option value="Delivery">Diantar ke Alamat (Delivery)</option>
+            <option value="Takeaway">Ambil Sendiri di Toko (Takeaway)</option>
+          </select>
+        </div>
+
+        <div id="alamatBox">
+          <label class="block text-[11px] font-semibold text-slate-700 mb-1">Alamat Pengiriman Lengkap *</label>
+          <textarea id="coAlamat" rows="2" placeholder="Nama jalan, nomor rumah, patokan..." class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue"></textarea>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-700 mb-1">Catatan Tambahan (Opsional)</label>
+          <input type="text" id="coCatatan" placeholder="Contoh: Titip di pos satpam" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue">
+        </div>
+
+        <!-- FITUR KUPON / VOUCHER DISKON -->
+        <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200/80 space-y-2">
+          <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+            <i class="fa-solid fa-ticket text-brand-blue text-xs"></i>
+            <span>Voucher Diskon</span>
+          </label>
+          
+          <div id="couponInputGroup" class="flex gap-2">
+            <input type="text" id="coCouponCode" placeholder="Masukkan kode kupon..." class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue uppercase font-bold tracking-wider bg-white">
+            <button type="button" onclick="applyCoupon()" id="btnApplyCoupon" class="px-4 py-2 bg-brand-blue hover:bg-brand-darkblue text-white text-xs font-bold uppercase tracking-wider rounded-xl transition active:scale-95 whitespace-nowrap shadow-sm">
+              Pakai
+            </button>
+          </div>
+
+          <!-- Indikator Kupon Terpasang -->
+          <div id="couponAppliedBox" class="hidden flex items-center justify-between bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl">
+            <div class="flex items-center gap-2 min-w-0">
+              <i class="fa-solid fa-circle-check text-emerald-600 text-sm"></i>
+              <div class="min-w-0">
+                <p id="appliedCouponLabel" class="text-xs font-bold text-emerald-800 tracking-wide uppercase truncate">KUPON TERPASANG</p>
+                <p id="appliedCouponDesc" class="text-[10px] text-emerald-600 font-semibold">Hemat Rp 0</p>
+              </div>
+            </div>
+            <button type="button" onclick="removeCoupon()" class="text-[11px] text-red-500 hover:text-red-700 font-bold px-2 py-1 rounded-lg hover:bg-red-50 transition active:scale-95 whitespace-nowrap">
+              Batal
+            </button>
+          </div>
+        </div>
+
+        <!-- RINCIAN TOTAL & DISKON -->
+        <div class="border-t border-slate-100 pt-2 space-y-1 text-xs">
+          <div class="flex justify-between text-slate-500">
+            <span>Subtotal Produk:</span>
+            <span id="coSubtotalTagihan" class="font-semibold text-slate-700">Rp 0</span>
+          </div>
+          <div id="coDiskonRow" class="flex justify-between text-emerald-600 font-semibold hidden">
+            <span id="coDiskonLabel">Diskon Kupon:</span>
+            <span id="coDiskonNilai">-Rp 0</span>
+          </div>
+          <div class="flex justify-between items-center text-xs font-bold pt-1.5 border-t border-slate-100">
+            <span class="text-slate-800">Total Tagihan:</span>
+            <span id="coTotalTagihan" class="font-extrabold text-brand-blue text-sm">Rp 0</span>
+          </div>
+        </div>
+
+        <p class="text-[11px] text-slate-500 leading-relaxed">Pesanan akan dicatat, lalu Anda bisa mengirim rinciannya melalui WhatsApp. Stok, ongkir jika ada, total akhir, dan pembayaran dikonfirmasi admin.</p>
+
+        <button type="submit" id="btnSubmitCheckout" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-md hover:shadow-emerald-200 transition flex items-center justify-center gap-2 active:scale-95">
+          <i class="fa-brands fa-whatsapp text-lg"></i>
+          <span>Lanjut ke WhatsApp</span>
+        </button>
+      </form>
+    </section>
+
+    <!-- HALAMAN 5: KONFIRMASI PESANAN -->
+    <section id="pageKonfirmasi" class="space-y-4 text-center py-6 hidden">
+      <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-2xl shadow-inner">
+        <i class="fa-solid fa-check"></i>
+      </div>
+      <div>
+        <h2 class="text-base font-bold text-slate-800">Pesanan Tercatat</h2>
+        <p class="text-xs text-slate-500 mt-1">Kirim pesan ke WhatsApp toko untuk konfirmasi pesanan.</p>
+        <p class="text-xs text-slate-500 mt-1">ID Pesanan Anda:</p>
+        <p id="confirmOrderId" class="font-mono font-bold text-brand-blue text-sm mt-0.5 select-all">TA-XXXX</p>
+      </div>
+
+      <div class="bg-sky-50 p-3 rounded-2xl border border-sky-200 text-left space-y-2">
+        <label for="confirmTrackingToken" class="block text-xs font-bold text-slate-800">Kode Pelacakan Pribadi</label>
+        <input id="confirmTrackingToken" type="text" readonly onclick="this.select()" autocomplete="off" spellcheck="false" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl font-mono bg-white select-all" aria-describedby="trackingCodeHelp">
+        <p id="trackingCodeHelp" class="text-[11px] text-slate-600">Salin dan simpan kode ini bersama ID pesanan. Kode juga dicantumkan dalam pesan pesanan WhatsApp. Jangan bagikan kepada pihak lain.</p>
+      </div>
+
+      <div id="confirmSummary" class="bg-white p-3.5 rounded-2xl border border-slate-100 text-left text-xs space-y-1 max-w-xs mx-auto shadow-sm"></div>
+
+      <a id="confirmWhatsAppLink" target="_blank" rel="noopener noreferrer" class="hidden block w-full max-w-xs mx-auto py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl">Kirim / Buka Lagi Pesanan di WhatsApp</a>
+
+      <div class="space-y-2 pt-2">
+        <button onclick="switchTab('lacak')" class="w-full max-w-xs py-2 bg-brand-blue text-white font-semibold text-xs rounded-xl shadow transition">
+          Lacak Pesanan Ini
+        </button>
+        <button onclick="switchTab('home')" class="w-full max-w-xs py-2 bg-slate-100 text-slate-700 font-semibold text-xs rounded-xl transition">
+          Kembali ke Beranda
+        </button>
+      </div>
+    </section>
+
+    <!-- PELACAKAN PRIVAT -->
+    <section id="pageLacak" class="space-y-3 hidden">
+      <div class="pb-2 border-b border-slate-200">
+        <h2 class="text-sm font-bold text-slate-800">Lacak Status Pesanan</h2>
+        <p class="text-[11px] text-slate-500">Masukkan ID dan kode pelacakan pribadi dari halaman konfirmasi atau pesan pesanan WhatsApp.</p>
+      </div>
+      <form onsubmit="event.preventDefault(); submitTrackOrder();" class="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+        <div>
+          <label for="trackOrderIdInput" class="block text-xs font-semibold text-slate-700 mb-1">ID Pesanan</label>
+          <input type="text" id="trackOrderIdInput" oninput="clearTrackingResult()" required placeholder="Contoh: TA-20261026-001" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue uppercase font-mono">
+        </div>
+        <div>
+          <label for="trackOrderTokenInput" class="block text-xs font-semibold text-slate-700 mb-1">Kode Pelacakan Pribadi</label>
+          <input type="password" id="trackOrderTokenInput" oninput="clearTrackingResult()" required autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="128" placeholder="Tempel kode pelacakan Anda" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue font-mono">
+        </div>
+        <button type="submit" id="btnSubmitTrack" class="w-full px-4 py-2 bg-brand-blue hover:bg-brand-darkblue text-white text-xs font-bold rounded-xl transition active:scale-95">
+          <i class="fa-solid fa-magnifying-glass"></i> Cari
+        </button>
+        <p class="text-[11px] text-slate-500">Kode hilang atau pesanan lama belum memiliki kode? Hubungi admin toko. Jangan bagikan kode kepada pihak lain.</p>
+      </form>
+      <div id="trackResultBox" class="space-y-2 hidden" aria-live="polite"></div>
+    </section>
+
+    <!-- HALAMAN: CARA ORDER -->
+    <section id="pageCaraOrder" class="space-y-3 hidden" aria-labelledby="caraOrderTitle">
+      <div class="pb-2 border-b border-slate-200">
+        <h2 id="caraOrderTitle" class="text-sm font-bold text-slate-800">Cara Order</h2>
+        <p class="text-[11px] text-slate-500 mt-1">Ikuti langkah mudah berikut untuk berbelanja di Toko Abangda.</p>
+      </div>
+      <ol class="space-y-3">
+        <li class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex gap-3">
+          <span aria-hidden="true" class="w-7 h-7 flex-shrink-0 rounded-full bg-sky-100 text-brand-blue flex items-center justify-center text-xs font-bold">1</span>
+          <div><h3 class="text-xs font-bold text-slate-800">Pilih produk</h3><p class="text-xs text-slate-600 leading-relaxed mt-1">Cari produk melalui kolom pencarian atau menu Katalog Lengkap. Pilih produk untuk melihat detailnya.</p></div>
+        </li>
+        <li class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex gap-3">
+          <span aria-hidden="true" class="w-7 h-7 flex-shrink-0 rounded-full bg-sky-100 text-brand-blue flex items-center justify-center text-xs font-bold">2</span>
+          <div><h3 class="text-xs font-bold text-slate-800">Masukkan ke keranjang</h3><p class="text-xs text-slate-600 leading-relaxed mt-1">Tambahkan produk ke keranjang dan atur jumlah yang ingin dibeli. Periksa kembali pesanan Anda sebelum melanjutkan ke checkout.</p></div>
+        </li>
+        <li class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex gap-3">
+          <span aria-hidden="true" class="w-7 h-7 flex-shrink-0 rounded-full bg-sky-100 text-brand-blue flex items-center justify-center text-xs font-bold">3</span>
+          <div><h3 class="text-xs font-bold text-slate-800">Lengkapi data pemesan</h3><p class="text-xs text-slate-600 leading-relaxed mt-1">Isi nama dan nomor WhatsApp. Pilih Diantar ke Alamat (Delivery) atau Ambil Sendiri di Toko (Takeaway). Untuk pengiriman, isi alamat lengkap. Tambahkan catatan atau voucher jika ada.</p></div>
+        </li>
+        <li class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex gap-3">
+          <span aria-hidden="true" class="w-7 h-7 flex-shrink-0 rounded-full bg-sky-100 text-brand-blue flex items-center justify-center text-xs font-bold">4</span>
+          <div><h3 class="text-xs font-bold text-slate-800">Kirim pesanan via WhatsApp</h3><p class="text-xs text-slate-600 leading-relaxed mt-1">Tekan tombol Lanjut ke WhatsApp, lalu kirim pesan pesanan yang sudah disiapkan di WhatsApp kepada toko. Konfirmasikan ketersediaan produk, total akhir, dan cara pembayaran dengan toko.</p></div>
+        </li>
+        <li class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex gap-3">
+          <span aria-hidden="true" class="w-7 h-7 flex-shrink-0 rounded-full bg-sky-100 text-brand-blue flex items-center justify-center text-xs font-bold">5</span>
+          <div><h3 class="text-xs font-bold text-slate-800">Simpan ID dan lacak pesanan</h3><p class="text-xs text-slate-600 leading-relaxed mt-1">Simpan ID Pesanan dan Kode Pelacakan Pribadi yang tampil setelah checkout. Buka menu Lacak Status Pesanan dan masukkan keduanya untuk melihat perkembangan pesanan.</p></div>
+        </li>
+      </ol>
+      <button type="button" onclick="switchTab('katalog')" class="w-full py-3 bg-brand-blue hover:bg-brand-darkblue text-white text-xs font-bold rounded-xl transition">Mulai Belanja</button>
+    </section>
+
+  </main>
+
+  <!-- FOOTER CARD MODERN (TERHUBUNG KE GOOGLE SHEET 'SETTINGS') -->
+  <footer class="max-w-md mx-auto px-4 mt-6 mb-8">
+    <div class="relative overflow-hidden bg-gradient-to-br from-[#0284c7] to-[#0369a1] rounded-3xl p-5 text-white shadow-xl shadow-sky-600/25 border border-sky-400/30">
+      <div class="space-y-4">
+        
+        <!-- BAGIAN 1: INFORMASI TOKO & ALAMAT (DINAMIS DARI GOOGLE SHEET) -->
+        <div class="space-y-1">
+          <h3 id="footerStoreName" class="font-extrabold text-xs tracking-wider uppercase text-white">TOKO ABANGDA</h3>
+          <p id="footerStoreAddress" class="text-[11px] font-medium leading-relaxed text-sky-100">
+            Pusat Kebutuhan Harian & Sembako Terpercaya<br>
+            Jl. Niaga Abangda No. 88, Indonesia<br>
+            T-(+62) 823-3146-3166
+          </p>
+          <button onclick="switchTab('katalog')" class="inline-flex items-center gap-2 text-[11px] font-bold tracking-wide text-white hover:text-brand-yellow transition pt-1 group">
+            <span>Jelajahi Katalog</span>
+            <span class="w-4 h-4 rounded-full bg-[#014f79] text-white flex items-center justify-center text-[8px] group-hover:scale-110 transition">
+              <i class="fa-solid fa-chevron-right"></i>
+            </span>
+          </button>
+        </div>
+
+        <!-- BAGIAN 2: SOSIAL MEDIA & WHATSAPP (LINK DINAMIS DARI SHEET 'SETTINGS') -->
+        <div class="pt-3 border-t border-sky-400/30">
+          <p class="text-[11px] font-bold tracking-wide text-white mb-2">Terhubung Dengan Kami</p>
+          <div id="footerSocialList" class="flex items-center gap-4 text-base text-white">
+            <a id="footerLinkFb" href="#" target="_blank" rel="noopener noreferrer" class="hover:text-brand-yellow transition active:scale-90" title="Facebook">
+              <i class="fa-brands fa-facebook-f"></i>
+            </a>
+
+            <a id="footerLinkIg" href="#" target="_blank" rel="noopener noreferrer" class="hover:text-brand-yellow transition active:scale-90" title="Instagram">
+              <i class="fa-brands fa-instagram"></i>
+            </a>
+
+            <a id="footerLinkYt" href="#" target="_blank" rel="noopener noreferrer" class="hover:text-brand-yellow transition active:scale-90" title="YouTube">
+              <i class="fa-brands fa-youtube"></i>
+            </a>
+
+            <a id="footerLinkTt" href="#" target="_blank" rel="noopener noreferrer" class="hover:text-brand-yellow transition active:scale-90" title="TikTok">
+              <i class="fa-brands fa-tiktok"></i>
+            </a>
+
+            <a id="footerLinkWa" href="#" target="_blank" rel="noopener noreferrer" class="hover:text-brand-yellow transition active:scale-90" title="WhatsApp">
+              <i class="fa-brands fa-whatsapp text-lg"></i>
+            </a>
+          </div>
+        </div>
+
+        <!-- BAGIAN 3: HAK CIPTA -->
+        <div class="pt-3 border-t border-sky-400/30 text-[9px] font-medium text-sky-200 text-center">
+          <span id="footerCopyright">@2026 All rights reserved.</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- MODAL DETAIL PRODUK -->
+  <div id="productDetailModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+      <div class="relative w-full aspect-square bg-slate-100">
+        <img id="modalProductImg" src="" alt="Produk" class="w-full h-full object-cover">
+        <button onclick="closeProductModal()" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-900/50 hover:bg-slate-900/70 text-white flex items-center justify-center text-xs backdrop-blur-sm transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="p-4 overflow-y-auto space-y-3">
+        <div>
+          <span id="modalProductBrand" class="text-[10px] font-bold text-brand-blue uppercase tracking-wider">BRAND</span>
+          <h3 id="modalProductTitle" class="font-bold text-sm text-slate-800">Nama Produk</h3>
+          <p id="modalProductPrice" class="font-extrabold text-sm text-brand-blue mt-0.5">Rp 0</p>
+          <p id="modalProductStock" class="text-[11px] text-slate-400 mt-0.5">Stok: 0</p>
+        </div>
+
+        <div class="border-t border-slate-100 pt-2">
+          <p class="text-[11px] font-semibold text-slate-700">Deskripsi:</p>
+          <p id="modalProductDesc" class="text-xs text-slate-500 mt-1 leading-relaxed">Deskripsi produk...</p>
+        </div>
+
+        <div class="flex items-center justify-between border-t border-slate-100 pt-3">
+          <span class="text-xs font-semibold text-slate-700">Jumlah Beli:</span>
+          <div class="flex items-center gap-3">
+            <button onclick="updateModalQty(-1)" class="w-7 h-7 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold transition">-</button>
+            <span id="modalProductQty" class="text-xs font-bold w-6 text-center">1</span>
+            <button onclick="updateModalQty(1)" class="w-7 h-7 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold transition">+</button>
+          </div>
+        </div>
+
+        <button onclick="addToCartFromModal()" id="modalBtnAddToCart" class="w-full py-2.5 bg-brand-blue hover:bg-brand-darkblue text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow transition active:scale-95">
+          Tambah ke Keranjang
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION POPUP -->
+  <div id="toastAlert" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-slate-900/90 text-white px-4 py-2 rounded-full text-xs font-medium shadow-lg backdrop-blur-sm pointer-events-none opacity-0 transition-opacity duration-300 flex items-center gap-2">
+    <i class="fa-solid fa-circle-check text-brand-yellow"></i>
+    <span id="toastMsg">Berhasil!</span>
+  </div>
+
+  <!-- Injeksi JS Modular (Apps Script & Fallback Canvas) -->
+  <?!= include('js'); ?>
+  <script>
+    // Kompatibel dengan js asli maupun js revisi yang memiliki switchTab.
+    if (typeof window.switchTab === 'function') {
+      const switchTabSebelumnya = window.switchTab;
+      window.switchTab = function(tab) {
+        const panduan = document.getElementById('pageCaraOrder');
+        if (panduan) panduan.classList.add('hidden');
+        switchTabSebelumnya(tab);
+      };
+    }
+  </script>
+
+</body>
+</html>
