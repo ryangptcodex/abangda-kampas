@@ -16,6 +16,144 @@
   let searchDebounceTimer = null;
   let trackingRequestVersion = 0;
 
+  const CART_STORAGE_KEY = 'tokoAbangda.cart.v1';
+  const CART_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+  let cartStorageAvailable = true;
+  let cartRestoreRequired = false;
+  let cartIsRestoring = false;
+  let cartRestoreVersion = 0;
+  let cartCheckoutPending = false;
+
+  function setCartNotice(message, retry, discard) {
+    let box = document.getElementById('cartStorageNotice');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'cartStorageNotice';
+      box.setAttribute('role', 'status');
+      box.style.cssText = 'margin:8px 16px;padding:12px;border-radius:12px;background:#f0f9ff;color:#075985;font-size:12px;flex-shrink:0';
+      const host = document.getElementById('cartItemsContainer');
+      if (host) host.before(box);
+      else (document.querySelector('main') || document.body).prepend(box);
+    }
+    box.replaceChildren();
+    box.hidden = !message;
+    if (!message) return;
+    const text = document.createElement('p');
+    text.textContent = message;
+    box.append(text);
+    function button(label, handler) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = label;
+      btn.style.cssText = 'margin-top:8px;margin-right:12px;text-decoration:underline;font-weight:600';
+      btn.onclick = handler;
+      box.append(btn);
+    }
+    if (retry) button('Coba pulihkan lagi', restoreSavedCart);
+    if (discard) button('Kosongkan keranjang tersimpan', discardSavedCart);
+  }
+
+  function cartReadyForChanges() {
+    if (cartCheckoutPending) {
+      showToast('Pesanan sedang disimpan. Tunggu sampai proses selesai.');
+      return false;
+    }
+    if (cartRestoreRequired) {
+      toggleCartDrawer(true);
+      showToast('Keranjang tersimpan sedang diperiksa. Coba pulihkan lagi atau kosongkan keranjang tersimpan.');
+      return false;
+    }
+    return true;
+  }
+
+  function saveCartToStorage() {
+    if (!cartStorageAvailable || cartRestoreRequired) return;
+    try {
+      const items = cartState.map(function(item) { return {id: String(item.id), qty: item.qty}; });
+      if (!items.length) window.localStorage.removeItem(CART_STORAGE_KEY);
+      else window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({version: 1, savedAt: Date.now(), items: items}));
+    } catch (error) {
+      cartStorageAvailable = false;
+      setCartNotice('Keranjang tidak dapat disimpan di perangkat ini. Anda tetap bisa berbelanja selama halaman terbuka.', false, false);
+    }
+  }
+
+  function discardSavedCart() {
+    if (cartCheckoutPending) return;
+    cartRestoreVersion++;
+    cartIsRestoring = false;
+    cartRestoreRequired = false;
+    cartState = [];
+    setCartNotice('', false, false);
+    updateCartBadge();
+    renderCartUI();
+    removeCoupon(true);
+  }
+
+  function restoreSavedCart() {
+    if (cartIsRestoring || cartCheckoutPending) return;
+    let raw;
+    try { raw = window.localStorage.getItem(CART_STORAGE_KEY); }
+    catch (error) {
+      cartStorageAvailable = false;
+      cartRestoreRequired = false;
+      setCartNotice('Keranjang tidak dapat disimpan di perangkat ini. Anda tetap bisa berbelanja selama halaman terbuka.', false, false);
+      return;
+    }
+    if (!raw) {
+      cartRestoreRequired = false;
+      setCartNotice('', false, false);
+      return;
+    }
+    let items;
+    try {
+      if (raw.length > 30000) throw new Error('Invalid cart');
+      const saved = JSON.parse(raw);
+      if (!saved || saved.version !== 1 || !Number.isSafeInteger(saved.savedAt) || saved.savedAt <= 0 || saved.savedAt > Date.now() + 300000 || !Array.isArray(saved.items) || saved.items.length > 100) throw new Error('Invalid cart');
+      if (Date.now() - saved.savedAt > CART_MAX_AGE_MS) {
+        discardSavedCart();
+        setCartNotice('Keranjang tersimpan sudah kedaluwarsa setelah 30 hari. Silakan pilih produk kembali.', false, false);
+        return;
+      }
+      items = saved.items.map(function(item) {
+        if (!item || typeof item.id !== 'string' || !item.id.trim() || item.id.length > 128 || !Number.isSafeInteger(item.qty) || item.qty < 1) throw new Error('Invalid cart');
+        return {id: item.id.trim(), qty: item.qty};
+      });
+    } catch (error) {
+      discardSavedCart();
+      setCartNotice('Keranjang tersimpan tidak bisa dibaca. Silakan pilih produk kembali.', false, false);
+      return;
+    }
+    if (!items.length) {
+      discardSavedCart();
+      return;
+    }
+    const version = ++cartRestoreVersion;
+    cartRestoreRequired = true;
+    cartIsRestoring = true;
+    setCartNotice('Memulihkan keranjang serta memperbarui harga dan stok...', false, true);
+    renderCartUI();
+    safeRun('getCartSnapshot', function(res) {
+      if (version !== cartRestoreVersion) return;
+      cartIsRestoring = false;
+      if (!res.success || !Array.isArray(res.items)) {
+        setCartNotice('Keranjang tersimpan belum bisa diperiksa. Coba pulihkan lagi atau kosongkan jika ingin mulai belanja baru.', true, true);
+        renderCartUI();
+        return;
+      }
+      cartState = res.items;
+      cartRestoreRequired = false;
+      updateCartBadge();
+      renderCartUI();
+      if (!cartStorageAvailable) return;
+      const changed = Array.isArray(res.adjustments) && res.adjustments.length > 0;
+      setCartNotice(changed
+        ? 'Keranjang dipulihkan. Beberapa produk dihapus atau jumlahnya disesuaikan karena ketersediaan berubah. Harga sudah diperbarui.'
+        : 'Keranjang dipulihkan dengan harga dan stok terbaru.', false, false);
+    }, items);
+  }
+
+
   function showDataError(message) {
     let box = document.getElementById('dataLoadError');
     if (!box) {
@@ -53,6 +191,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', function() {
+    restoreSavedCart();
     initCustomerApp();
     setupInfiniteScroll();
     setupSearchDismissListener();
@@ -137,6 +276,7 @@
   }
 
   function proceedToCheckoutFromDrawer() {
+    if (!cartReadyForChanges()) return;
     if (cartState.length === 0) {
       showToast('Keranjang belanjaan Anda masih kosong!');
       return;
@@ -732,6 +872,7 @@
   }
 
   function quickAddToCart(id, nama, harga, maxStock, url_foto, brand) {
+    if (!cartReadyForChanges()) return;
     const stock = maxStock !== undefined ? maxStock : 999;
     if (stock <= 0) {
       showToast('Maaf, produk ini sedang habis!');
@@ -751,6 +892,7 @@
   }
 
   function addToCartFromModal() {
+    if (!cartReadyForChanges()) return;
     if (selectedModalProduct) {
       const stock = parseInt(selectedModalProduct.stok) || 0;
       if (stock <= 0) {
@@ -774,7 +916,12 @@
   }
 
   function addToCartInternal(id, nama, harga, qty, maxStock, url_foto, brand) {
+    if (!cartReadyForChanges()) return;
     let existing = cartState.find(function(item) { return item.id === id; });
+    if (!existing && cartState.length >= 100) {
+      showToast('Maksimal 100 jenis produk dalam satu keranjang.');
+      return;
+    }
     if (existing) {
       existing.qty += qty;
       if (maxStock !== undefined) existing.maxStock = maxStock;
@@ -788,6 +935,7 @@
   }
 
   function updateCartBadge() {
+    saveCartToStorage();
     const badge = document.getElementById('cartBadge');
     if (!badge) return;
     const totalQty = cartState.reduce(function(acc, item) { return acc + item.qty; }, 0);
@@ -810,6 +958,12 @@
     const checkoutReview = document.getElementById('checkoutItemsReview');
     if (!container || !summary) return;
 
+    if (cartRestoreRequired) {
+      container.textContent = cartIsRestoring ? 'Harga dan stok keranjang sedang diperiksa...' : 'Keranjang tersimpan menunggu pemeriksaan. Gunakan tombol di atas untuk melanjutkan.';
+      summary.classList.add('hidden');
+      if (checkoutReview) checkoutReview.textContent = '';
+      return;
+    }
     if (cartState.length === 0) {
       container.innerHTML = '<div class="py-12 flex flex-col items-center justify-center text-center text-slate-400 space-y-2"><div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-2xl text-slate-300"><i class="fa-solid fa-cart-arrow-down"></i></div><p class="text-xs font-semibold">Keranjang masih kosong</p><p class="text-[11px] text-slate-400">Pilih produk favorit Anda sekarang!</p></div>';
       summary.classList.add('hidden');
@@ -967,6 +1121,7 @@
   }
 
   function changeCartQty(idx, delta) {
+    if (!cartReadyForChanges()) return;
     const item = cartState[idx];
     if (delta > 0 && item.maxStock !== undefined && item.qty + delta > item.maxStock) {
       showToast('Stok maksimal tercapai (' + item.maxStock + ' pcs)');
@@ -982,6 +1137,7 @@
   }
 
   function removeCartItem(idx) {
+    if (!cartReadyForChanges()) return;
     cartState.splice(idx, 1);
     updateCartBadge();
     renderCartUI();
@@ -998,6 +1154,7 @@
   }
 
 function submitCheckout() {
+    if (!cartReadyForChanges()) return;
   if (!cartState.length) {
     showToast('Keranjang masih kosong!');
     return;
@@ -1019,9 +1176,11 @@ function submitCheckout() {
     items: cartState.map(function(item) { return { id: item.id, qty: item.qty }; }),
     kode_kupon: appliedCoupon ? appliedCoupon.code : ''
   };
+  cartCheckoutPending = true;
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-circle-notch animate-spin"></i> MENYIMPAN PESANAN...';
   safeRun('createOrder', function(res) {
+    cartCheckoutPending = false;
     btn.disabled = false;
     btn.innerHTML = '<i class="fa-brands fa-whatsapp text-lg"></i><span>Lanjut ke WhatsApp</span>';
     if (!res.success) {

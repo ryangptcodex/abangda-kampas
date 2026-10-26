@@ -2,6 +2,18 @@
 
 Aplikasi Google Apps Script yang terhubung ke Google Sheets. Nama toko tetap Toko Abangda.
 
+## Pembaruan keranjang tersimpan — 27 Oktober 2026
+
+Jika revisi pelacakan sebelumnya sudah terpasang, cukup ganti seluruh isi **`Kode.gs`** dengan [code.gs](code.gs) dan **`js.html`** dengan [js.html](js.html), simpan keduanya, lalu uji `/dev`. `index.html`, `setup.gs`, dan `css.html` tidak berubah pada pembaruan ini. Tidak perlu menjalankan setup database. Setelah pengujian, perbarui deployment `/exec` yang dipakai pelanggan.
+
+Keranjang menyimpan ID produk dan jumlah di perangkat/browser yang sama selama maksimal 30 hari sejak terakhir disimpan. Harga, nama produk, stok, kupon, data pemesan, dan kode pelacakan tidak disimpan. Setiap pemulihan menggunakan satu permintaan baca katalog untuk mengambil harga/stok terkini: produk hilang/habis dihapus, jumlah dibatasi stok, dan pelanggan diberi tahu. Pemeriksaan server saat checkout tetap berlaku.
+
+Jika pemulihan gagal, data tersimpan tidak ditimpa. Pelanggan dapat mencoba lagi atau memilih mengosongkan keranjang tersimpan. Perubahan keranjang diblokir selama pemulihan dan penyimpanan pesanan untuk menghindari hasil yang saling menimpa. Data tersimpan rusak/kedaluwarsa dibersihkan; checkout berhasil menghapus keranjang tersimpan, sedangkan checkout gagal mempertahankannya.
+
+Penyimpanan memerlukan izin browser untuk localStorage, termasuk pada iframe Google Apps Script/Google Sites. Jika diblokir atau kuota perangkat penuh, aplikasi tetap bisa berbelanja dengan keranjang untuk sesi halaman tersebut dan menampilkan pemberitahuan. Fitur ini bukan sinkronisasi akun lintas perangkat atau sinkronisasi langsung antar tab.
+
+Uji pemasangan: tambah produk, ubah jumlah, refresh, periksa keranjang, lalu coba checkout gagal dan berhasil. Pastikan cart hilang setelah checkout berhasil dan tidak muncul lagi setelah refresh. Gunakan konteks `/exec` atau embed Google Sites yang benar-benar dipakai pelanggan untuk memeriksa izin penyimpanan browser.
+
 ## Salin kode lengkap ke Apps Script
 
 Buka file di bawah, lalu gunakan tombol **Copy raw file** di GitHub untuk menyalin seluruh kode. Hindari menyalin nomor baris atau pratinjau potongan kode.
@@ -59,12 +71,13 @@ Menu ini memanggil fungsi berakhiran `_`, yang tidak dapat dipanggil lewat `goog
 
 ## Pemeriksaan lokal
 
-- `node tests/checkout.test.cjs`: 42 pemeriksaan backend, termasuk kalkulasi, kupon/stok, hash, penolakan ID saja, pemisahan kode antar order, dukungan pesanan lama, dan rotasi admin.
+- `node tests/checkout.test.cjs`: 47 pemeriksaan backend, termasuk kalkulasi, kupon/stok, hash, penolakan ID saja, pemisahan kode antar order, dukungan pesanan lama, rotasi admin, dan rekonsiliasi keranjang dari katalog terkini.
 - `node tests/checkout.browser.cjs`: uji Chromium pada ukuran HP untuk checkout, Cara Order, konfirmasi, dan WhatsApp; respons RPC disimulasikan.
+- `node tests/cart.browser.cjs`: penyimpanan pada origin browser stabil, refresh/buka ulang, harga/stok terbaru, data rusak/kedaluwarsa, gagal/retry, respons terlambat setelah discard, checkout sukses/gagal, dan storage ditolak/penuh. Menjalankan backend repo dengan layanan Sheets tiruan.
 - `node tests/tracking.browser.cjs`: browser menjalankan kode klien dan backend repo, dengan layanan SpreadsheetApp/Utilities/LockService tiruan. Menguji penerbitan kode, lookup benar/salah, privasi respons, penolakan respons terlambat, escaping teks, dan rotasi kode.
 
 Uji browser memerlukan Node, Playwright (diverifikasi dengan 1.62.1), dan Chromium. Gunakan `CHROMIUM_PATH` jika executable bukan `/usr/bin/chromium`. CSS fixture lokal dipakai dalam tes dengan CDN diblokir; koneksi CDN di perangkat pengguna belum dibuktikan oleh tes ini. Tidak ada penulisan ke Sheets asli dalam tes lokal.
 
 ## Belum termasuk
 
-Keranjang persisten, ongkir otomatis, reservasi stok, idempotensi checkout setelah reload, statistik admin, serta pembatasan laju/monitoring percobaan akses pelacakan. Pemegang kode yang dibagikan dapat melihat rincian pesanan; ganti kode melalui menu admin jika terlanjur tersebar.
+Ongkir otomatis, reservasi stok, idempotensi checkout setelah reload, statistik admin, serta pembatasan laju/monitoring percobaan akses pelacakan. Pemegang kode yang dibagikan dapat melihat rincian pesanan; ganti kode melalui menu admin jika terlanjur tersebar.

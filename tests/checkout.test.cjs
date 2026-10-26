@@ -122,4 +122,33 @@ test('admin action rejects wrong sheet, header selection and multiple rows witho
   f.context.issueTrackingCodeForSelectedOrder_();assert.equal(JSON.stringify(f.tables),before);assert.match(f.alerts.at(-1)[0],/Pilih satu baris/);
  }
 });
-console.log(`${passed} checkout and private tracking checks passed.`);
+test('cart snapshot returns current catalog fields and ignores saved display data',()=>{
+ const f=fixture();f.tables.products[1][4]=40000;
+ const before=JSON.stringify(f.tables);
+ const r=f.context.getCartSnapshot([{id:'P1',qty:2,harga:1,nama:'Forged',maxStock:9999}]);
+ assert.equal(r.success,true);assert.equal(r.items[0].harga,40000);assert.equal(r.items[0].nama,'Beras');assert.equal(r.items[0].maxStock,10);
+ assert.equal(JSON.stringify(f.tables),before);assert.equal(f.attempts(),0);
+});
+test('cart snapshot caps aggregated quantities at current stock',()=>{
+ const f=fixture();f.tables.products[1][6]=3;
+ const r=f.context.getCartSnapshot([{id:'P1',qty:2},{id:'P1',qty:4}]);
+ assert.equal(r.success,true);assert.equal(r.items.length,1);assert.equal(r.items[0].qty,3);assert.equal(r.adjustments[0].reason,'quantity_reduced');
+});
+test('cart snapshot drops removed and sold-out products with explanations',()=>{
+ const f=fixture();f.tables.products[1][6]=0;
+ const r=f.context.getCartSnapshot([{id:'P1',qty:2},{id:'REMOVED',qty:1}]);
+ assert.equal(r.success,true);assert.equal(r.items.length,0);assert.equal(r.adjustments.length,2);
+ assert.equal(r.adjustments[0].reason,'out_of_stock');assert.equal(r.adjustments[1].reason,'removed');
+});
+test('cart snapshot validates saved structure and quantity types',()=>{
+ const f=fixture();
+ for(const input of [null,{},Array.from({length:101},()=>({id:'P1',qty:1})),[{id:'',qty:1}],[{id:'a'.repeat(129),qty:1}],[{id:'P1',qty:0}],[{id:'P1',qty:-1}],[{id:'P1',qty:1.5}],[{id:'P1',qty:'2'}],[{id:'P1',qty:true}],[{id:'P1',qty:Number.MAX_SAFE_INTEGER},{id:'P1',qty:1}]]) {
+  assert.equal(f.context.getCartSnapshot(input).success,false);
+ }
+ assert.equal(f.context.getCartSnapshot([]).success,true);
+});
+test('cart snapshot fails rather than replacing a cart with misleading catalog data',()=>{
+ const f=fixture();f.tables.products[1][4]='Rp 34.500';assert.equal(f.context.getCartSnapshot([{id:'P1',qty:1}]).success,false);
+ f.tables.products[1][4]=34500;f.tables.products.push([...f.tables.products[1]]);assert.equal(f.context.getCartSnapshot([{id:'P1',qty:1}]).success,false);
+});
+console.log(`${passed} checkout, tracking and cart checks passed.`);

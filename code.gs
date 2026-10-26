@@ -323,6 +323,68 @@ function getProductById(productId) {
   }
 }
 
+// Read-only reconciliation of saved IDs/quantities against the current catalog.
+function getCartSnapshot(savedItems) {
+  try {
+    if (!Array.isArray(savedItems) || savedItems.length > 100) {
+      throw new Error('Keranjang tersimpan tidak valid.');
+    }
+    const wanted = new Map();
+    savedItems.forEach(function(item) {
+      const id = item && typeof item.id === 'string' ? item.id.trim() : '';
+      const qty = item && item.qty;
+      if (!id || id.length > 128 || !Number.isSafeInteger(qty) || qty < 1) {
+        throw new Error('ID atau jumlah produk tersimpan tidak valid.');
+      }
+      const total = (wanted.get(id) || 0) + qty;
+      if (!Number.isSafeInteger(total)) throw new Error('Jumlah produk tersimpan terlalu besar.');
+      wanted.set(id, total);
+    });
+    if (!wanted.size) return { success: true, items: [], adjustments: [] };
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss && ss.getSheetByName('products');
+    if (!sheet) throw new Error('Sheet products tidak ditemukan.');
+    const rows = sheet.getDataRange().getValues();
+    const headers = rows[0] || [];
+    const columns = {};
+    ['id_produk', 'nama', 'harga', 'stok'].forEach(function(name) {
+      columns[name] = headers.indexOf(name);
+      if (columns[name] < 0) throw new Error('Kolom produk belum lengkap: ' + name);
+    });
+    const brandCol = headers.indexOf('brand');
+    const photoCol = headers.indexOf('url_foto');
+    const products = new Map();
+    rows.slice(1).forEach(function(row) {
+      const id = String(row[columns.id_produk] || '').trim();
+      if (!wanted.has(id)) return;
+      if (products.has(id)) throw new Error('ID produk duplikat di Sheets: ' + id);
+      products.set(id, row);
+    });
+    function integer(value, label) {
+      if (typeof value === 'string' && /^\d+$/.test(value.trim())) value = Number(value);
+      if (!Number.isSafeInteger(value) || value < 0) throw new Error(label + ' produk tidak valid.');
+      return value;
+    }
+    const items = [], adjustments = [];
+    wanted.forEach(function(qty, id) {
+      const row = products.get(id);
+      if (!row) { adjustments.push({id: id, reason: 'removed'}); return; }
+      const stock = integer(row[columns.stok], 'Stok');
+      const price = integer(row[columns.harga], 'Harga');
+      const name = String(row[columns.nama] || '').trim();
+      if (!name) throw new Error('Nama produk kosong: ' + id);
+      if (!stock) { adjustments.push({id: id, reason: 'out_of_stock'}); return; }
+      if (qty > stock) adjustments.push({id: id, reason: 'quantity_reduced'});
+      items.push({id: id, qty: Math.min(qty, stock), nama: name, harga: price,
+        maxStock: stock, brand: brandCol < 0 ? '' : String(row[brandCol] || ''),
+        url_foto: photoCol < 0 ? '' : String(row[photoCol] || '')});
+    });
+    return { success: true, items: items, adjustments: adjustments };
+  } catch (error) {
+    return { success: false, message: error.message || 'Keranjang belum dapat dipulihkan.' };
+  }
+}
+
 function validateCoupon(couponCode, subtotal) {
   try {
     const code = String(couponCode || '').trim().toUpperCase();
