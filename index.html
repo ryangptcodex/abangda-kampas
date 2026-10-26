@@ -41,6 +41,9 @@
     .fab, .fa-brands { font-family: "Font Awesome 6 Brands" !important; }
     body { background-color: #f8fafc; }
     .hidden { display: none !important; }
+    .category-name { display:block; white-space:normal; overflow-wrap:anywhere; line-height:1.45; }
+    .category-tile { min-width:0; min-height:100px; }
+    #categoryGrid { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:stretch; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
@@ -234,7 +237,7 @@
           <h2 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Kategori Pilihan</h2>
           <button onclick="switchTab('katalog')" class="text-[11px] text-brand-blue font-semibold hover:underline">Lihat Semua</button>
         </div>
-        <div id="categoryGrid" class="grid grid-cols-4 gap-2"></div>
+        <div id="categoryGrid" class="grid grid-cols-2 gap-2"></div>
       </div>
 
       <!-- Produk Unggulan -->
@@ -545,7 +548,7 @@
           <span id="modalProductBrand" class="text-[10px] font-bold text-brand-blue uppercase tracking-wider">BRAND</span>
           <h3 id="modalProductTitle" class="font-bold text-sm text-slate-800">Nama Produk</h3>
           <p id="modalProductPrice" class="font-extrabold text-sm text-brand-blue mt-0.5">Rp 0</p>
-          <p id="modalProductStock" class="text-[11px] text-slate-400 mt-0.5">Stok: 0</p>
+          <p id="modalWholesaleInfo" class="text-xs text-emerald-700 mt-1 leading-relaxed"></p>
         </div>
 
         <div class="border-t border-slate-100 pt-2">

@@ -7,6 +7,7 @@ function onOpen(e) {
   SpreadsheetApp.getUi()
     .createMenu('🛒 Toko Abangda')
     .addItem('🛠️ Siapkan Database', 'setupDatabase_')
+    .addItem('💰 Siapkan Kolom Harga Grosir', 'prepareWholesaleColumns_')
     .addSeparator()
     .addItem('📦 Buka Produk', 'openProductsSheet')
     .addItem('🗂️ Buka Kategori', 'openCategoriesSheet')
@@ -73,9 +74,10 @@ function setupDatabase_() {
         'brand',
         'harga',
         'deskripsi',
-        'stok',
         'url_foto',
-        'is_unggulan'
+        'is_unggulan',
+        'harga_grosir',
+        'min_beli_grosir'
       ],
       categories: [
         'nama',
@@ -524,7 +526,6 @@ function seedProductsIfEmpty(sheet) {
         'Bimoli',
         34500,
         'Minyak goreng kelapa sawit berkualitas tinggi, bening dan sehat.',
-        50,
         'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=80',
         'YA'
       ],
@@ -535,7 +536,6 @@ function seedProductsIfEmpty(sheet) {
         'Toko Abangda',
         72000,
         'Beras pulen pilihan tanpa bahan pengawet.',
-        30,
         'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=600&q=80',
         'YA'
       ],
@@ -546,7 +546,6 @@ function seedProductsIfEmpty(sheet) {
         'Nestle',
         18500,
         'Kopi bubuk asli racikan istimewa Abangda.',
-        100,
         'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?auto=format&fit=crop&w=600&q=80',
         'YA'
       ],
@@ -557,7 +556,6 @@ function seedProductsIfEmpty(sheet) {
         'Unilever',
         8500,
         'Sabun mandi dengan aroma harum menyegarkan sepanjang hari.',
-        75,
         'https://images.unsplash.com/photo-1607006482170-13f5fb479b12?auto=format&fit=crop&w=600&q=80',
         'TIDAK'
       ],
@@ -568,13 +566,20 @@ function seedProductsIfEmpty(sheet) {
         'Wings',
         22000,
         'Pembersih pakaian ampuh menghilangkan noda membandel.',
-        40,
         'https://images.unsplash.com/photo-1585830812416-a6c86bb14576?auto=format&fit=crop&w=600&q=80',
         'TIDAK'
       ]
     ];
 
-    sheet.getRange(2, 1, products.length, 9).setValues(products);
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+    const demoFields = ['id_produk','nama','id_kategori','brand','harga','deskripsi','url_foto','is_unggulan'];
+    const rows = products.map(function(product) {
+      return headers.map(function(header) {
+        const index = demoFields.indexOf(header);
+        return index < 0 ? '' : product[index];
+      });
+    });
+    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
   }
 }
 

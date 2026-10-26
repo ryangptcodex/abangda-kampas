@@ -2,17 +2,39 @@
 
 Aplikasi Google Apps Script yang terhubung ke Google Sheets. Nama toko tetap Toko Abangda.
 
-## Pembaruan keranjang tersimpan — 27 Oktober 2026
+## Pembaruan stok manual, harga grosir, dan kategori — 27 Oktober 2026
 
-Jika revisi pelacakan sebelumnya sudah terpasang, cukup ganti seluruh isi **`Kode.gs`** dengan [code.gs](code.gs) dan **`js.html`** dengan [js.html](js.html), simpan keduanya, lalu uji `/dev`. `index.html`, `setup.gs`, dan `css.html` tidak berubah pada pembaruan ini. Tidak perlu menjalankan setup database. Setelah pengujian, perbarui deployment `/exec` yang dipakai pelanggan.
+Ganti **empat file lengkap**: [code.gs](code.gs) ke backend `Kode.gs` yang ada, [js.html](js.html), [index.html](index.html), dan [setup.gs](setup.gs). `css.html` tetap. Simpan semuanya, buka `/dev`, lalu muat ulang spreadsheet. Jangan menjalankan setup database untuk memasang revisi ini.
 
-Keranjang menyimpan ID produk dan jumlah di perangkat/browser yang sama selama maksimal 30 hari sejak terakhir disimpan. Harga, nama produk, stok, kupon, data pemesan, dan kode pelacakan tidak disimpan. Setiap pemulihan menggunakan satu permintaan baca katalog untuk mengambil harga/stok terkini: produk hilang/habis dihapus, jumlah dibatasi stok, dan pelanggan diberi tahu. Pemeriksaan server saat checkout tetap berlaku.
+### Kolom harga grosir
 
-Jika pemulihan gagal, data tersimpan tidak ditimpa. Pelanggan dapat mencoba lagi atau memilih mengosongkan keranjang tersimpan. Perubahan keranjang diblokir selama pemulihan dan penyimpanan pesanan untuk menghindari hasil yang saling menimpa. Data tersimpan rusak/kedaluwarsa dibersihkan; checkout berhasil menghapus keranjang tersimpan, sedangkan checkout gagal mempertahankannya.
+Dua kolom berikut ditambahkan otomatis di akhir sheet `products` saat aplikasi dibuka. Alternatif: pilih menu **Toko Abangda → Siapkan Kolom Harga Grosir**. Proses ini hanya menambahkan kolom yang belum ada dan tidak menghapus atau mengisi ulang produk lama.
 
-Penyimpanan memerlukan izin browser untuk localStorage, termasuk pada iframe Google Apps Script/Google Sites. Jika diblokir atau kuota perangkat penuh, aplikasi tetap bisa berbelanja dengan keranjang untuk sesi halaman tersebut dan menampilkan pemberitahuan. Fitur ini bukan sinkronisasi akun lintas perangkat atau sinkronisasi langsung antar tab.
+| harga | harga_grosir | min_beli_grosir |
+| --- | --- | --- |
+| 10000 | 9000 | 12 |
 
-Uji pemasangan: tambah produk, ubah jumlah, refresh, periksa keranjang, lalu coba checkout gagal dan berhasil. Pastikan cart hilang setelah checkout berhasil dan tidak muncul lagi setelah refresh. Gunakan konteks `/exec` atau embed Google Sites yang benar-benar dipakai pelanggan untuk memeriksa izin penyimpanan browser.
+Contoh: 1–11 pcs = Rp10.000/pcs; 12 pcs atau lebih = Rp9.000/pcs untuk **seluruh jumlah produk tersebut**. Turun ke 11 pcs mengembalikan harga normal. Jumlah produk berbeda tidak digabung untuk mencapai batas grosir. Pembelian dari kartu produk dan modal dihitung bersama berdasarkan ID produk dalam keranjang.
+
+Isi angka tanpa teks Rp: `harga` adalah harga normal, `harga_grosir` harus lebih dari nol dan tidak melebihi harga normal, `min_beli_grosir` adalah bilangan bulat minimal 1. Kosongkan kedua kolom grosir (atau isi keduanya nol) jika produk tidak memiliki harga grosir. Mengisi hanya salah satu atau angka tidak valid akan menampilkan error konfigurasi; lengkapi atau kosongkan keduanya.
+
+Tombol tambah/kurang pada kartu produk, modal, keranjang, ringkasan checkout, dan pemulihan keranjang memakai aturan harga yang sama. Server menghitung ulang harga grosir berdasarkan jumlah total per SKU ketika order dibuat. Jika kupon digunakan, perhitungan kupon memakai subtotal setelah harga grosir. Pesan WhatsApp dan pelacakan memakai harga pesanan yang tercatat.
+
+### Ketersediaan dikonfirmasi manual
+
+Badge stok/habis/sisa, pembatas jumlah berdasarkan stok, dan pemeriksaan stok checkout dihapus. Produk dapat dipesan walaupun kolom `stok` lama bernilai nol, kosong, atau sudah dihapus. Kolom lama tidak dibaca dan tidak dihapus otomatis. Admin memeriksa ketersediaan lalu menghubungi nomor WhatsApp pembeli yang tercatat pada sheet `orders`. Status awal tetap **Menunggu Konfirmasi Stok**.
+
+### Kategori terbaca penuh
+
+Kategori beranda memakai dua kolom dengan nama yang membungkus ke beberapa baris, tanpa ellipsis atau pembatas satu baris. Nama kategori di sidebar juga tidak dipotong. Nama yang berisi tanda kutip tetap dapat diklik.
+
+### Keranjang tersimpan
+
+Keranjang menyimpan version/waktu/ID produk/jumlah di perangkat/browser yang sama selama maksimal 30 hari sejak terakhir disimpan. Harga, nama produk, kupon, data pemesan, dan kode pelacakan tidak disimpan. Pemulihan membaca harga normal/grosir terbaru dari server, mempertahankan jumlah yang diminta, dan hanya menghapus produk yang tidak lagi terdaftar.
+
+Jika pemulihan gagal, cache dipertahankan dengan opsi coba lagi/kosongkan. Checkout gagal mempertahankan cache; checkout berhasil menghapusnya. Jika localStorage diblokir atau penuh, aplikasi tetap bisa digunakan dengan keranjang sesi dan pemberitahuan. Bukan sinkronisasi akun lintas perangkat atau sinkronisasi langsung antar tab.
+
+Uji `/dev`: isi contoh harga grosir pada satu produk, tambah/kurangi hingga melewati minimum, periksa harga di kartu/modal/keranjang, refresh, dan lakukan pesanan uji. Pastikan label stok sudah tidak ada dan nama kategori panjang terbaca. Setelah lolos, perbarui deployment `/exec` dan embed Google Sites jika dipakai.
 
 ## Salin kode lengkap ke Apps Script
 
@@ -37,15 +59,15 @@ Ganti seluruh isi file sesuai namanya; jangan gabungkan atau membuat backend dup
 5. Setelah hasil `/dev` benar, perbarui deployment `/exec` ke versi baru. Perbarui/nonaktifkan deployment publik lama yang masih menyediakan pelacakan hanya berdasarkan ID; menguji `/dev` saja tidak menutup akses pada backend lama.
 6. Uji satu pesanan nyata dengan produk uji: periksa harga/kupon, baris orders, kode pada konfirmasi, pesan WhatsApp, dan pelacakan dengan kode benar/salah. Akses Google Sheets dan deployment asli belum dapat diuji dari workspace ini.
 
-Harga, stok, nilai/min_belanja/kuota kupon harus berupa angka bulat nonnegatif. Masukkan 34500 sebagai angka; format tampilan mata uang di Sheets boleh digunakan. Kupon harus PERSEN (1–100) atau NOMINAL (lebih dari nol).
+Harga dan nilai/min_belanja/kuota kupon harus berupa angka bulat nonnegatif. Masukkan 34500 sebagai angka; format tampilan mata uang di Sheets boleh digunakan. Kupon harus PERSEN (1–100) atau NOMINAL (lebih dari nol).
 
 ## Transaksi
 
-Server membaca ulang ID produk, jumlah, harga, stok, dan kupon saat checkout. Harga/total/diskon dari browser tidak dipercaya. Produk dengan ID ganda atau angka tidak valid ditolak. Harga katalog dibaca dari nilai angka asli Sheets agar format mata uang tidak mengubah nominal. Jumlah berulang untuk produk sama digabung sebelum pemeriksaan stok.
+Server membaca ulang ID produk, jumlah, harga normal/grosir, dan kupon saat checkout. Harga/total/diskon dari browser tidak dipercaya. Produk dengan ID ganda atau angka tidak valid ditolak. Harga katalog dibaca dari nilai angka asli Sheets agar format mata uang tidak mengubah nominal. Jumlah berulang untuk produk sama digabung sebelum pemilihan harga grosir.
 
 ScriptLock melindungi pembuatan nomor pesanan dan pemakaian kuota kupon antar permintaan melalui skrip ini. Kuota dipulihkan jika penulisan order gagal secara sinkron. Google Sheets tidak menyediakan transaksi atomik multi-sheet: kegagalan infrastruktur dengan hasil tulis yang tidak pasti tetap perlu rekonsiliasi admin. Penyuntingan Sheets manual tidak mengikuti ScriptLock.
 
-Stok tetap menunggu konfirmasi admin; belum ada reservasi atau pemotongan otomatis. Beberapa pesanan masih dapat meminta stok sama sebelum konfirmasi. Kuota kupon terpakai ketika order tercatat; pembatalan belum mengembalikannya otomatis.
+Ketersediaan diperiksa manual oleh admin melalui WhatsApp; tidak ada pembatasan atau pencatatan stok otomatis. Kuota kupon terpakai ketika order tercatat; pembatalan belum mengembalikannya otomatis.
 
 Setelah order tercatat, pelanggan melihat total server dan menekan tautan WhatsApp. Tautan dapat dibuka ulang tanpa membuat order baru. Keranjang dipertahankan bila checkout ditolak. Tidak ada pembayaran otomatis.
 
@@ -71,13 +93,14 @@ Menu ini memanggil fungsi berakhiran `_`, yang tidak dapat dipanggil lewat `goog
 
 ## Pemeriksaan lokal
 
-- `node tests/checkout.test.cjs`: 47 pemeriksaan backend, termasuk kalkulasi, kupon/stok, hash, penolakan ID saja, pemisahan kode antar order, dukungan pesanan lama, rotasi admin, dan rekonsiliasi keranjang dari katalog terkini.
+- `node tests/checkout.test.cjs`: 54 pemeriksaan backend, termasuk kalkulasi, kupon/grosir, hash, penolakan ID saja, pemisahan kode antar order, dukungan pesanan lama, rotasi admin, dan rekonsiliasi keranjang dari katalog terkini.
 - `node tests/checkout.browser.cjs`: uji Chromium pada ukuran HP untuk checkout, Cara Order, konfirmasi, dan WhatsApp; respons RPC disimulasikan.
-- `node tests/cart.browser.cjs`: penyimpanan pada origin browser stabil, refresh/buka ulang, harga/stok terbaru, data rusak/kedaluwarsa, gagal/retry, respons terlambat setelah discard, checkout sukses/gagal, dan storage ditolak/penuh. Menjalankan backend repo dengan layanan Sheets tiruan.
+- `node tests/cart.browser.cjs`: penyimpanan pada origin browser stabil, refresh/buka ulang, harga terbaru tanpa pembatasan stok, data rusak/kedaluwarsa, gagal/retry, respons terlambat setelah discard, checkout sukses/gagal, dan storage ditolak/penuh. Menjalankan backend repo dengan layanan Sheets tiruan.
+- `node tests/wholesale.browser.cjs`: harga berubah tepat pada batas grosir dan kembali normal saat dikurangi; tanpa stok; modal menghitung jumlah gabungan; keranjang persisten; kupon, WhatsApp, pelacakan; nama kategori penuh pada viewport 320/390/768/1280 piksel.
 - `node tests/tracking.browser.cjs`: browser menjalankan kode klien dan backend repo, dengan layanan SpreadsheetApp/Utilities/LockService tiruan. Menguji penerbitan kode, lookup benar/salah, privasi respons, penolakan respons terlambat, escaping teks, dan rotasi kode.
 
 Uji browser memerlukan Node, Playwright (diverifikasi dengan 1.62.1), dan Chromium. Gunakan `CHROMIUM_PATH` jika executable bukan `/usr/bin/chromium`. CSS fixture lokal dipakai dalam tes dengan CDN diblokir; koneksi CDN di perangkat pengguna belum dibuktikan oleh tes ini. Tidak ada penulisan ke Sheets asli dalam tes lokal.
 
 ## Belum termasuk
 
-Ongkir otomatis, reservasi stok, idempotensi checkout setelah reload, statistik admin, serta pembatasan laju/monitoring percobaan akses pelacakan. Pemegang kode yang dibagikan dapat melihat rincian pesanan; ganti kode melalui menu admin jika terlanjur tersebar.
+Ongkir otomatis, idempotensi checkout setelah reload, statistik admin, serta pembatasan laju/monitoring percobaan akses pelacakan. Pemegang kode yang dibagikan dapat melihat rincian pesanan; ganti kode melalui menu admin jika terlanjur tersebar.

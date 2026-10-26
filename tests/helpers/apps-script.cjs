@@ -6,7 +6,8 @@ const crypto = require('node:crypto');
 const source = fs.readFileSync(path.join(__dirname, '..', '..', 'code.gs'), 'utf8');
 function fixture(options = {}) {
   const tables = {
-    products: [['id_produk','nama','id_kategori','brand','harga','deskripsi','stok','url_foto','is_unggulan'], ['P1','Beras','Sembako','Abangda',34500,'Beras 5 kg',10,'','YA']],
+    products: [['id_produk','nama','id_kategori','brand','harga','deskripsi','stok','url_foto','is_unggulan','harga_grosir','min_beli_grosir'], ['P1','Beras','Sembako','Abangda',34500,'Beras 5 kg',10,'','YA','','']],
+    categories: [['nama','url_ikon'], ["Kebutuhan Rumah Tangga & Perawatan Keluarga",''], ["Vitamin 'A' dan Kesehatan Anak",'']],
     coupons: [['kode_kupon','tipe','nilai','min_belanja','kuota','status'], ['HEMAT','PERSEN',10,30000,2,'AKTIF']],
     orders: [['id_pesanan','tgl_pesan','nama_pemesan','no_whatsapp','alamat','catatan','tipe_pengiriman','detail_produk','total_harga','status']],
     settings: [['kunci','nilai'], ['no_whatsapp','6282331463166']]
@@ -39,7 +40,8 @@ function fixture(options = {}) {
     getRange(row, col, nr=1, nc=1) { return {
       getDisplayValue: () => String(rows[row-1][col-1] == null ? '' : rows[row-1][col-1]),
       getDisplayValues: () => rows.slice(row-1, row-1+nr).map(r => r.slice(col-1,col-1+nc).map(String)),
-      setValue(value) { rows[row-1][col-1] = value; }
+      setValue(value) { rows[row-1][col-1] = value; },
+      setValues(values) { values.forEach((value,i)=>{if(!rows[row-1+i])rows[row-1+i]=[];value.forEach((cell,j)=>{rows[row-1+i][col-1+j]=cell;});}); }
     }; },
     appendRow(row) { if (options.failAppend) throw Error('Gagal menulis order'); rows.push([...row]); }
   }]));

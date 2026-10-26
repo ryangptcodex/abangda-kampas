@@ -49,11 +49,12 @@ const KEY = 'tokoAbangda.cart.v1';
     f.tables.products[1][4]=40000;f.tables.products[1][6]=1;
     await page.reload();await ready();
     assert.equal(await page.evaluate(()=>cartState[0].harga),40000);
-    assert.equal(await page.evaluate(()=>cartState[0].qty),1);
+    assert.equal(await page.evaluate(()=>cartState[0].qty),2);
     await page.evaluate(()=>toggleCartDrawer(true));
-    assert.match(await page.locator('#cartStorageNotice').innerText(),/disesuaikan/);
+    assert.match(await page.locator('#cartStorageNotice').innerText(),/harga terbaru/);
     assert.match(await page.locator('#cartItemsContainer').innerText(),/40\.000/);
     // Quantity/remove actions are persisted, including deleting an empty cart.
+    await page.evaluate(()=>changeCartQty(0,-1));assert.equal(JSON.parse(await stored()).items[0].qty,1);
     await page.evaluate(()=>changeCartQty(0,-1));assert.equal(await stored(),null);
     f.tables.products[1][6]=10;
     await page.evaluate(()=>quickAddToCart('P1','Beras',40000,10,'','Abangda'));
@@ -67,10 +68,10 @@ const KEY = 'tokoAbangda.cart.v1';
     assert.equal(await page.evaluate(()=>cartState[0].harga),40000);
     assert.deepEqual(JSON.parse(await stored()).items,[{id:'P1',qty:2}]);
     assert.equal((await stored()).includes('SECRET'),false);
-    // Unknown/deleted and sold-out items are removed after a successful lookup.
+    // Only deleted products are removed; legacy inventory values never cap quantities.
     f.tables.products[1][6]=0;
     await seed([{id:'P1',qty:1},{id:'DELETED',qty:1}]);await page.reload();await ready();
-    assert.equal(await stored(),null);assert.equal(await page.evaluate(()=>cartState.length),0);
+    assert.deepEqual(JSON.parse(await stored()).items,[{id:'P1',qty:1}]);assert.equal(await page.evaluate(()=>cartState.length),1);
     f.tables.products[1][6]=10;
     // Malformed and expired carts do not crash startup or trigger restoration RPCs.
     const snapshotsBefore=counts.getCartSnapshot;
@@ -131,6 +132,6 @@ const KEY = 'tokoAbangda.cart.v1';
     assert.equal(await fullPage.locator('#cartBadge').innerText(),'1');
     assert.equal(await fullPage.evaluate(()=>cartStorageAvailable),false);
     assert.deepEqual(errors,[]);
-    console.log('PASS persistent cart browser + actual backend: refresh/reopen, canonical price/stock, adjustments/removal, minimal storage, invalid/expired data, failure/retry, discard race, checkout clear/failure/edit lock, denied/full storage.');
+    console.log('PASS persistent cart browser + actual backend: refresh/reopen, canonical pricing without inventory limits, adjustments/removal, minimal storage, invalid/expired data, failure/retry, discard race, checkout clear/failure/edit lock, denied/full storage.');
   } finally {await browser.close();}
 })().catch(error=>{console.error(error);process.exit(1);});

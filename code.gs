@@ -21,9 +21,70 @@ function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
+function ensureWholesaleColumns_(ss) {
+  const sheet = ss.getSheetByName('products');
+  if (!sheet || sheet.getLastColumn() < 1) throw new Error('Sheet products atau header produk belum tersedia.');
+  const wanted = ['harga_grosir', 'min_beli_grosir'];
+  let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+  if (wanted.every(function(name) { return headers.includes(name); })) return;
+  const lock = LockService.getScriptLock();
+  let locked = false;
+  try {
+    if (!lock.tryLock(15000)) throw new Error('Pengaturan produk sedang diproses. Silakan coba lagi.');
+    locked = true;
+    headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+    wanted.forEach(function(name) {
+      if (headers.includes(name)) return;
+      if (sheet.getMaxColumns() <= headers.length) sheet.insertColumnAfter(sheet.getMaxColumns());
+      sheet.getRange(1, headers.length + 1).setValue(name);
+      headers.push(name);
+    });
+  } finally { if (locked) lock.releaseLock(); }
+}
+
+function prepareWholesaleColumns_() {
+  ensureWholesaleColumns_(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.getUi().alert('Kolom harga_grosir dan min_beli_grosir sudah siap di sheet products. Isi keduanya untuk mengaktifkan harga grosir per produk. Data produk lama tetap dipertahankan.');
+}
+
+function productFromRow_(row, headers) {
+  function field(name) {
+    const index = headers.indexOf(name);
+    return index < 0 || row[index] == null ? '' : row[index];
+  }
+  function integer(value, label) {
+    if (typeof value === 'string' && /^\d+$/.test(value.trim())) value = Number(value);
+    if (!Number.isSafeInteger(value) || value < 0) throw new Error(label + ' harus berupa angka bulat nonnegatif.');
+    return value;
+  }
+  const id = String(field('id_produk')).trim();
+  const name = String(field('nama')).trim();
+  if (!id || !name) throw new Error('ID atau nama produk belum lengkap.');
+  const price = integer(field('harga'), 'Harga ' + id);
+  const rawWholesale = field('harga_grosir');
+  const rawMinimum = field('min_beli_grosir');
+  function blank(value) { return value === '' || value === 0 || value === '0'; }
+  let wholesale = 0, minimum = 0;
+  if (!blank(rawWholesale) || !blank(rawMinimum)) {
+    wholesale = integer(rawWholesale, 'Harga grosir ' + id);
+    minimum = integer(rawMinimum, 'Minimum grosir ' + id);
+    if (wholesale <= 0 || wholesale > price || minimum < 1) {
+      throw new Error('Isi harga_grosir dan min_beli_grosir dengan benar untuk ' + id + '. Harga grosir harus lebih dari nol dan tidak melebihi harga normal.');
+    }
+  }
+  return {id_produk:id, nama:name, id_kategori:String(field('id_kategori')), brand:String(field('brand')),
+    harga:price, harga_grosir:wholesale, min_beli_grosir:minimum,
+    deskripsi:String(field('deskripsi')), url_foto:String(field('url_foto'))};
+}
+
+function unitPriceForQuantity_(product, qty) {
+  return product.min_beli_grosir > 0 && qty >= product.min_beli_grosir ? product.harga_grosir : product.harga;
+}
+
 function getInitialData() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
+    ensureWholesaleColumns_(ss);
 
     // Data pengaturan toko.
     const setSheet = ss.getSheetByName('settings');
@@ -112,44 +173,15 @@ function getInitialData() {
       }
     }
 
-    // Produk unggulan.
     const prdSheet = ss.getSheetByName('products');
     const featuredProducts = [];
-
     if (prdSheet && prdSheet.getLastRow() > 1) {
-      const prdData = prdSheet.getDataRange().getDisplayValues();
-      const prdDataValues = prdSheet.getDataRange().getValues();
-      const headers = prdData[0];
-      const idIdx = headers.indexOf('id_produk');
-      const namaIdx = headers.indexOf('nama');
-      const brandIdx = headers.indexOf('brand');
-      const hargaIdx = headers.indexOf('harga');
-      const descIdx = headers.indexOf('deskripsi');
-      const stokIdx = headers.indexOf('stok');
-      const fotoIdx = headers.indexOf('url_foto');
-      const unggulanIdx = headers.indexOf('is_unggulan');
-
-      for (let i = 1; i < prdData.length; i++) {
-        const isUnggulan = unggulanIdx !== -1
-          ? String(prdData[i][unggulanIdx]).trim().toUpperCase()
-          : '';
-
-        if (isUnggulan === 'YA') {
-          featuredProducts.push({
-            id_produk: idIdx !== -1 ? prdData[i][idIdx] : '',
-            nama: namaIdx !== -1 ? prdData[i][namaIdx] : '',
-            brand: brandIdx !== -1 ? prdData[i][brandIdx] : '',
-            harga: hargaIdx !== -1
-              ? Number(prdDataValues[i][hargaIdx]) || 0
-              : 0,
-            deskripsi: descIdx !== -1 ? prdData[i][descIdx] : '',
-            stok: stokIdx !== -1
-              ? parseInt(prdDataValues[i][stokIdx], 10) || 0
-              : 0,
-            url_foto: fotoIdx !== -1 ? prdData[i][fotoIdx] : ''
-          });
-        }
-      }
+      const rows = prdSheet.getDataRange().getValues();
+      const headers = rows[0];
+      const flag = headers.indexOf('is_unggulan');
+      rows.slice(1).forEach(function(row) {
+        if (flag >= 0 && String(row[flag]).trim().toUpperCase() === 'YA') featuredProducts.push(productFromRow_(row, headers));
+      });
     }
 
     return {
@@ -190,10 +222,7 @@ function getProducts(searchVal, categoryId, brandVal, page, limit) {
     const namaIdx = headers.indexOf('nama');
     const catIdx = headers.indexOf('id_kategori');
     const brandIdx = headers.indexOf('brand');
-    const hargaIdx = headers.indexOf('harga');
     const descIdx = headers.indexOf('deskripsi');
-    const stokIdx = headers.indexOf('stok');
-    const fotoIdx = headers.indexOf('url_foto');
 
     const search = searchVal
       ? String(searchVal).toLowerCase().trim()
@@ -229,16 +258,7 @@ function getProducts(searchVal, categoryId, brandVal, page, limit) {
         pBrand.toLowerCase() === String(brand).toLowerCase().trim();
 
       if (matchSearch && matchCat && matchBrand) {
-        filtered.push({
-          id_produk: idIdx !== -1 ? row[idIdx] : '',
-          nama: namaIdx !== -1 ? row[namaIdx] : '',
-          id_kategori: pCat,
-          brand: pBrand,
-          harga: hargaIdx !== -1 ? Number(rawDataValues[i][hargaIdx]) || 0 : 0,
-          deskripsi: descIdx !== -1 ? row[descIdx] : '',
-          stok: stokIdx !== -1 ? parseInt(rawDataValues[i][stokIdx], 10) || 0 : 0,
-          url_foto: fotoIdx !== -1 ? row[fotoIdx] : ''
-        });
+        filtered.push(productFromRow_(rawDataValues[i], headers));
       }
     }
 
@@ -282,32 +302,14 @@ function getProductById(productId) {
     const idIdx = headers.indexOf('id_produk');
     const namaIdx = headers.indexOf('nama');
     const brandIdx = headers.indexOf('brand');
-    const hargaIdx = headers.indexOf('harga');
     const descIdx = headers.indexOf('deskripsi');
-    const stokIdx = headers.indexOf('stok');
-    const fotoIdx = headers.indexOf('url_foto');
 
     for (let i = 1; i < rawData.length; i++) {
       if (
         idIdx !== -1 &&
         String(rawData[i][idIdx]).trim() === String(productId).trim()
       ) {
-        return {
-          success: true,
-          product: {
-            id_produk: rawData[i][idIdx],
-            nama: namaIdx !== -1 ? rawData[i][namaIdx] : '',
-            brand: brandIdx !== -1 ? rawData[i][brandIdx] : '',
-            harga: hargaIdx !== -1
-              ? Number(rawDataValues[i][hargaIdx]) || 0
-              : 0,
-            deskripsi: descIdx !== -1 ? rawData[i][descIdx] : '',
-            stok: stokIdx !== -1
-              ? parseInt(rawDataValues[i][stokIdx], 10) || 0
-              : 0,
-            url_foto: fotoIdx !== -1 ? rawData[i][fotoIdx] : ''
-          }
-        };
+        return { success: true, product: productFromRow_(rawDataValues[i], headers) };
       }
     }
 
@@ -347,12 +349,10 @@ function getCartSnapshot(savedItems) {
     const rows = sheet.getDataRange().getValues();
     const headers = rows[0] || [];
     const columns = {};
-    ['id_produk', 'nama', 'harga', 'stok'].forEach(function(name) {
+    ['id_produk', 'nama', 'harga'].forEach(function(name) {
       columns[name] = headers.indexOf(name);
       if (columns[name] < 0) throw new Error('Kolom produk belum lengkap: ' + name);
     });
-    const brandCol = headers.indexOf('brand');
-    const photoCol = headers.indexOf('url_foto');
     const products = new Map();
     rows.slice(1).forEach(function(row) {
       const id = String(row[columns.id_produk] || '').trim();
@@ -360,24 +360,14 @@ function getCartSnapshot(savedItems) {
       if (products.has(id)) throw new Error('ID produk duplikat di Sheets: ' + id);
       products.set(id, row);
     });
-    function integer(value, label) {
-      if (typeof value === 'string' && /^\d+$/.test(value.trim())) value = Number(value);
-      if (!Number.isSafeInteger(value) || value < 0) throw new Error(label + ' produk tidak valid.');
-      return value;
-    }
     const items = [], adjustments = [];
     wanted.forEach(function(qty, id) {
       const row = products.get(id);
       if (!row) { adjustments.push({id: id, reason: 'removed'}); return; }
-      const stock = integer(row[columns.stok], 'Stok');
-      const price = integer(row[columns.harga], 'Harga');
-      const name = String(row[columns.nama] || '').trim();
-      if (!name) throw new Error('Nama produk kosong: ' + id);
-      if (!stock) { adjustments.push({id: id, reason: 'out_of_stock'}); return; }
-      if (qty > stock) adjustments.push({id: id, reason: 'quantity_reduced'});
-      items.push({id: id, qty: Math.min(qty, stock), nama: name, harga: price,
-        maxStock: stock, brand: brandCol < 0 ? '' : String(row[brandCol] || ''),
-        url_foto: photoCol < 0 ? '' : String(row[photoCol] || '')});
+      const product = productFromRow_(row, headers);
+      items.push({id:id, qty:qty, nama:product.nama, harga:unitPriceForQuantity_(product, qty),
+        harga_normal:product.harga, harga_grosir:product.harga_grosir, min_beli_grosir:product.min_beli_grosir,
+        brand:product.brand, url_foto:product.url_foto});
     });
     return { success: true, items: items, adjustments: adjustments };
   } catch (error) {
@@ -489,7 +479,7 @@ function createOrder(orderPayload) {
     const rows = products.getDataRange().getValues();
     const headers = rows[0] || [];
     const idx = {};
-    ['id_produk', 'nama', 'brand', 'harga', 'stok'].forEach(function(field) {
+    ['id_produk', 'nama', 'brand', 'harga'].forEach(function(field) {
       idx[field] = headers.indexOf(field);
       if (idx[field] < 0) throw new Error('Kolom produk belum lengkap: ' + field);
     });
@@ -505,14 +495,12 @@ function createOrder(orderPayload) {
     quantities.forEach(function(qty, id) {
       const row = byId.get(id);
       if (!row) throw new Error('Produk tidak ditemukan: ' + id);
-      const stock = integer(row[idx.stok], 'Stok ' + id);
-      const price = integer(row[idx.harga], 'Harga ' + id);
-      const productName = String(row[idx.nama]).trim();
-      if (!productName) throw new Error('Nama produk kosong: ' + id);
-      if (qty > stock) throw new Error('Stok ' + productName + ' tersisa ' + stock + '. Perbarui keranjang.');
+      const product = productFromRow_(row, headers);
+      const price = unitPriceForQuantity_(product, qty);
       subtotal += price * qty;
       if (!Number.isSafeInteger(subtotal)) throw new Error('Total pesanan terlalu besar.');
-      items.push({ id: id, nama: productName, brand: String(row[idx.brand] || ''), harga: price, qty: qty });
+      items.push({id:id, nama:product.nama, brand:product.brand, harga:price, qty:qty,
+        harga_normal:product.harga, harga_grosir:product.harga_grosir, min_beli_grosir:product.min_beli_grosir});
     });
     const couponCode = text(payload.kode_kupon, 64, 'Kode kupon').toUpperCase();
     let discount = 0;

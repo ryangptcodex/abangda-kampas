@@ -131,7 +131,7 @@
     const version = ++cartRestoreVersion;
     cartRestoreRequired = true;
     cartIsRestoring = true;
-    setCartNotice('Memulihkan keranjang serta memperbarui harga dan stok...', false, true);
+    setCartNotice('Memulihkan keranjang serta memperbarui harga produk...', false, true);
     renderCartUI();
     safeRun('getCartSnapshot', function(res) {
       if (version !== cartRestoreVersion) return;
@@ -148,8 +148,8 @@
       if (!cartStorageAvailable) return;
       const changed = Array.isArray(res.adjustments) && res.adjustments.length > 0;
       setCartNotice(changed
-        ? 'Keranjang dipulihkan. Beberapa produk dihapus atau jumlahnya disesuaikan karena ketersediaan berubah. Harga sudah diperbarui.'
-        : 'Keranjang dipulihkan dengan harga dan stok terbaru.', false, false);
+        ? 'Keranjang dipulihkan. Produk yang tidak lagi terdaftar dihapus. Harga sudah diperbarui.'
+        : 'Keranjang dipulihkan dengan harga terbaru. Ketersediaan dikonfirmasi melalui WhatsApp.', false, false);
     }, items);
   }
 
@@ -453,31 +453,39 @@
   function renderCategories(categories) {
     const grid = document.getElementById('categoryGrid');
     const pills = document.getElementById('filterCategoryPills');
-    const sidebarList = document.getElementById('sidebarCategoryList');
-    
-    let gridHtml = '';
-    let pillsHtml = '<button onclick="filterByCategory(\'ALL\')" id="pill-ALL" class="cat-pill active-pill px-3.5 py-1.5 bg-brand-blue text-white rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap shadow-sm">Semua</button>';
-    let sidebarHtml = '';
-
-    categories.forEach(function(c) {
-      let iconUrl = formatImageUrl(c.url_ikon || 'https://cdn-icons-png.flaticon.com/512/3081/3081840.png');
-
-      gridHtml += '<div onclick="filterByCategory(\'' + c.id_kategori + '\'); switchTab(\'katalog\');" class="bg-white p-2.5 rounded-2xl border border-slate-100 flex flex-col items-center text-center cursor-pointer hover:shadow-md transition">';
-      gridHtml += '<img src="' + iconUrl + '" onerror="this.onerror=null; this.src=\'https://cdn-icons-png.flaticon.com/512/3081/3081840.png\';" class="w-8 h-8 object-contain mb-1">';
-      gridHtml += '<span class="text-[10px] font-semibold text-slate-700 uppercase tracking-wide line-clamp-1">' + c.nama + '</span>';
-      gridHtml += '</div>';
-
-      pillsHtml += '<button onclick="filterByCategory(\'' + c.id_kategori + '\')" id="pill-' + c.id_kategori + '" class="cat-pill px-3.5 py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-full text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap transition">' + c.nama + '</button>';
-
-      sidebarHtml += '<button onclick="navFromSidebar(\'katalog\', \'' + c.id_kategori + '\', null)" class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs text-slate-700 hover:bg-slate-100 transition">';
-      sidebarHtml += '<span class="flex items-center gap-2.5"><img src="' + iconUrl + '" onerror="this.onerror=null; this.src=\'https://cdn-icons-png.flaticon.com/512/3081/3081840.png\';" class="w-4 h-4 object-contain"> ' + c.nama + '</span>';
-      sidebarHtml += '<i class="fa-solid fa-chevron-right text-[10px] text-slate-300"></i>';
-      sidebarHtml += '</button>';
+    const sidebar = document.getElementById('sidebarCategoryList');
+    if (grid) grid.replaceChildren();
+    if (pills) pills.replaceChildren();
+    if (sidebar) sidebar.replaceChildren();
+    function pill(id, name) {
+      const button = document.createElement('button');
+      button.type = 'button'; button.id = 'pill-' + id; button.textContent = name;
+      button.className = id === 'ALL' ? 'cat-pill active-pill px-3.5 py-1.5 bg-brand-blue text-white rounded-full text-[10px] font-bold whitespace-nowrap' : 'cat-pill px-3.5 py-1.5 bg-slate-100 text-slate-600 rounded-full text-[10px] font-semibold whitespace-nowrap';
+      button.onclick = function() { filterByCategory(id); };
+      if (pills) pills.append(button);
+    }
+    pill('ALL', 'Semua');
+    categories.forEach(function(category) {
+      const button = document.createElement('button');
+      button.type = 'button'; button.title = category.nama;
+      button.className = 'bg-white p-3 rounded-2xl border border-slate-100 flex flex-col items-center justify-center text-center category-tile';
+      const image = document.createElement('img');
+      image.src = formatImageUrl(category.url_ikon || 'https://cdn-icons-png.flaticon.com/512/3081/3081840.png');
+      image.alt = ''; image.className = 'w-8 h-8 object-contain mb-2';
+      image.onerror = function() { this.onerror = null; this.src = 'https://cdn-icons-png.flaticon.com/512/3081/3081840.png'; };
+      const label = document.createElement('span');
+      label.className = 'category-name text-xs font-semibold text-slate-700';
+      label.textContent = category.nama;
+      button.append(image, label);
+      button.onclick = function() { filterByCategory(category.id_kategori); switchTab('katalog'); };
+      if (grid) grid.append(button);
+      pill(category.id_kategori, category.nama);
+      const entry = document.createElement('button');
+      entry.type = 'button'; entry.className = 'w-full px-3 py-2 rounded-xl text-xs text-slate-700 text-left category-name';
+      entry.textContent = category.nama;
+      entry.onclick = function() { navFromSidebar('katalog', category.id_kategori, null); };
+      if (sidebar) sidebar.append(entry);
     });
-
-    if (grid) grid.innerHTML = gridHtml;
-    if (pills) pills.innerHTML = pillsHtml;
-    if (sidebarList) sidebarList.innerHTML = sidebarHtml;
   }
 
   function renderBrands(brands) {
@@ -573,52 +581,70 @@
     }
   }
 
-  function generateProductsHtml(products) {
-    if (!products || products.length === 0) return '';
-    let html = '';
-    products.forEach(function(p) {
-      let imgUrl = formatImageUrl(p.url_foto);
-      let stockVal = parseInt(p.stok) || 0;
-      let isOutOfStock = stockVal <= 0;
+  const productCache = new Map();
 
-      let stockBadgeHtml = '';
-      if (isOutOfStock) {
-        stockBadgeHtml = '<span class="absolute top-2 right-2 px-2.5 py-0.5 bg-red-600/90 backdrop-blur-sm text-white text-[9px] font-bold uppercase tracking-wider rounded-full shadow-sm flex items-center gap-1"><i class="fa-solid fa-ban text-[8px]"></i> Habis</span>';
-      } else if (stockVal <= 5) {
-        stockBadgeHtml = '<span class="absolute top-2 right-2 px-2.5 py-0.5 bg-amber-500/90 backdrop-blur-sm text-white text-[9px] font-bold uppercase tracking-wider rounded-full shadow-sm flex items-center gap-1"><i class="fa-solid fa-fire text-[8px]"></i> Sisa ' + stockVal + '</span>';
-      } else {
-        stockBadgeHtml = '<span class="absolute top-2 right-2 px-2.5 py-0.5 bg-slate-900/60 backdrop-blur-sm text-white text-[9px] font-bold uppercase tracking-wider rounded-full shadow-sm">Stok ' + stockVal + '</span>';
-      }
+  function unitPrice(product, qty) {
+    const normal = Number(product.harga_normal !== undefined ? product.harga_normal : product.harga) || 0;
+    const minimum = Number(product.min_beli_grosir) || 0;
+    return minimum > 0 && qty >= minimum ? Number(product.harga_grosir) : normal;
+  }
 
-      html += '<div class="bg-white rounded-2xl p-2.5 border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition">';
-      html += '<div>';
-      
-      html += '<div class="w-full aspect-square bg-slate-100 rounded-xl overflow-hidden mb-2 relative cursor-pointer group" onclick="openProductDetail(\'' + p.id_produk + '\')">';
-      html += '<img src="' + imgUrl + '" onerror="this.onerror=null; this.src=\'https://placehold.co/200x200/f1f5f9/94a3b8?text=Gambar+Gagal\';" class="w-full h-full object-cover transition duration-300 group-hover:scale-105' + (isOutOfStock ? ' grayscale opacity-60' : '') + '">';
-      html += stockBadgeHtml;
-      html += '</div>';
-
-      if (p.brand) {
-        html += '<p class="text-[9px] font-bold text-brand-blue uppercase tracking-wider line-clamp-1 mb-0.5">' + p.brand + '</p>';
-      }
-
-      html += '<h3 class="font-semibold text-xs text-slate-800 line-clamp-1 mb-1">' + p.nama + '</h3>';
-      html += '<p class="font-bold text-xs text-brand-blue mb-2">Rp ' + parseFloat(p.harga).toLocaleString('id-ID') + '</p>';
-      html += '</div>';
-
-      if (isOutOfStock) {
-        html += '<button disabled class="w-full py-2 bg-slate-100 text-slate-400 font-bold text-[10px] uppercase tracking-wider rounded-xl flex items-center justify-center gap-1 cursor-not-allowed">';
-        html += '<i class="fa-solid fa-box-open text-[10px]"></i> Stok Habis';
-        html += '</button>';
-      } else {
-        html += '<button onclick="quickAddToCart(\'' + p.id_produk + '\', \'' + escapeQuotes(p.nama) + '\', ' + p.harga + ', ' + stockVal + ', \'' + escapeQuotes(p.url_foto || '') + '\', \'' + escapeQuotes(p.brand || '') + '\')" class="w-full py-2 bg-brand-yellow hover:bg-brand-accent text-slate-900 font-bold text-[10px] uppercase tracking-wider rounded-xl flex items-center justify-center gap-1 transition shadow-sm active:scale-95">';
-        html += '<i class="fa-solid fa-cart-plus"></i> Tambah';
-        html += '</button>';
-      }
-
-      html += '</div>';
+  function repriceCart() {
+    cartState.forEach(function(item) {
+      if (item.harga_normal === undefined) item.harga_normal = Number(item.harga) || 0;
+      item.harga = unitPrice(item, item.qty);
     });
-    return html;
+  }
+
+  function refreshProductCards() {
+    document.querySelectorAll('[data-product-id]').forEach(function(card) {
+      const product = productCache.get(card.dataset.productId);
+      if (!product) return;
+      const item = cartState.find(function(row) { return row.id === product.id_produk; });
+      const qty = item ? item.qty : 0;
+      const minimum = Number(product.min_beli_grosir) || 0;
+      const wholesale = minimum > 0 && qty >= minimum;
+      card.querySelector('[data-role="price"]').textContent = 'Rp ' + unitPrice(product, qty).toLocaleString('id-ID');
+      card.querySelector('[data-role="quantity"]').textContent = qty;
+      card.querySelector('[data-role="add"]').classList.toggle('hidden', qty > 0);
+      card.querySelector('[data-role="stepper"]').classList.toggle('hidden', qty === 0);
+      const hint = card.querySelector('[data-role="wholesale"]');
+      hint.textContent = minimum > 0
+        ? (wholesale ? 'Harga grosir aktif' : 'Grosir Rp ' + Number(product.harga_grosir).toLocaleString('id-ID') + ' mulai ' + minimum + ' pcs') : '';
+      hint.classList.toggle('hidden', !minimum);
+    });
+  }
+
+  function adjustProductQuantity(id, delta) {
+    if (!cartReadyForChanges()) return;
+    const index = cartState.findIndex(function(item) { return item.id === id; });
+    if (index >= 0) { changeCartQty(index, delta); return; }
+    if (delta < 1) return;
+    const p = productCache.get(id);
+    if (!p) return;
+    addToCartInternal(p.id_produk, p.nama, p.harga, 1, null, p.url_foto, p.brand, p.harga_grosir, p.min_beli_grosir);
+  }
+
+  function generateProductsHtml(products) {
+    if (!Array.isArray(products)) return '';
+    return products.map(function(p) {
+      productCache.set(p.id_produk, p);
+      const item = cartState.find(function(row) { return row.id === p.id_produk; });
+      const qty = item ? item.qty : 0;
+      const minimum = Number(p.min_beli_grosir) || 0;
+      const hint = minimum > 0 ? (qty >= minimum ? 'Harga grosir aktif' : 'Grosir Rp ' + Number(p.harga_grosir).toLocaleString('id-ID') + ' mulai ' + minimum + ' pcs') : '';
+      const action = "adjustProductQuantity(this.closest('[data-product-id]').dataset.productId,";
+      let html = '<div data-product-id="' + escapeHtml(p.id_produk) + '" class="bg-white rounded-2xl p-2.5 border border-slate-100 shadow-sm flex flex-col justify-between">';
+      html += '<div><button type="button" aria-label="Lihat detail ' + escapeHtml(p.nama) + '" onclick="openProductDetail(this.closest(\'[data-product-id]\').dataset.productId)" class="w-full aspect-square bg-slate-100 rounded-xl overflow-hidden mb-2">';
+      html += '<img src="' + escapeHtml(formatImageUrl(p.url_foto)) + '" alt="' + escapeHtml(p.nama) + '" onerror="this.onerror=null;this.src=\'https://placehold.co/200x200/f1f5f9/94a3b8?text=Produk\';" class="w-full h-full object-cover"></button>';
+      if (p.brand) html += '<p class="text-[9px] font-bold text-brand-blue uppercase mb-0.5">' + escapeHtml(p.brand) + '</p>';
+      html += '<h3 class="font-semibold text-xs text-slate-800 mb-1">' + escapeHtml(p.nama) + '</h3>';
+      html += '<p data-role="price" class="font-bold text-xs text-brand-blue mb-1">Rp ' + unitPrice(p, qty).toLocaleString('id-ID') + '</p>';
+      html += '<p data-role="wholesale" class="text-[10px] text-emerald-700 font-semibold mb-2' + (minimum ? '' : ' hidden') + '">' + hint + '</p></div>';
+      html += '<button type="button" data-role="add" onclick="' + action + '1)" class="w-full py-2 bg-brand-yellow text-slate-900 font-bold text-[10px] rounded-xl' + (qty ? ' hidden' : '') + '"><i class="fa-solid fa-plus"></i> Tambah</button>';
+      html += '<div data-role="stepper" class="flex items-center justify-between gap-2' + (qty ? '' : ' hidden') + '"><button type="button" aria-label="Kurangi ' + escapeHtml(p.nama) + '" onclick="' + action + '-1)" class="w-8 h-8 bg-slate-100 rounded-lg font-bold">−</button><span data-role="quantity" class="text-xs font-bold">' + qty + '</span><button type="button" aria-label="Tambah ' + escapeHtml(p.nama) + '" onclick="' + action + '1)" class="w-8 h-8 bg-brand-yellow rounded-lg font-bold">+</button></div></div>';
+      return html;
+    }).join('');
   }
 
   function escapeQuotes(str) {
@@ -799,56 +825,39 @@
     }
   }
 
+  function updateModalPricing() {
+    if (!selectedModalProduct) return;
+    const inCart = cartState.find(function(item) { return item.id === selectedModalProduct.id_produk; });
+    const totalQty = (inCart ? inCart.qty : 0) + modalQty;
+    const price = unitPrice(selectedModalProduct, totalQty);
+    document.getElementById('modalProductPrice').textContent = 'Rp ' + price.toLocaleString('id-ID');
+    const info = document.getElementById('modalWholesaleInfo');
+    if (info) {
+      const minimum = Number(selectedModalProduct.min_beli_grosir) || 0;
+      info.textContent = minimum > 0
+        ? (totalQty >= minimum ? 'Harga grosir aktif. ' : 'Grosir Rp ' + Number(selectedModalProduct.harga_grosir).toLocaleString('id-ID') + ' mulai ' + minimum + ' pcs. ') + 'Total setelah ditambah: ' + totalQty + ' pcs.'
+        : 'Ketersediaan barang dikonfirmasi admin melalui WhatsApp.';
+    }
+  }
+
   function openProductDetail(productId) {
     safeRun('getProductById', function(res) {
-      if (res.success && res.product) {
-        selectedModalProduct = res.product;
-        modalQty = 1;
-        const stock = parseInt(res.product.stok) || 0;
-        
-        const modalBrand = document.getElementById('modalProductBrand');
-        if (modalBrand) {
-          modalBrand.innerText = res.product.brand || (settingsState.nama_toko || 'TOKO ABANGDA');
-        }
-
-        document.getElementById('modalProductTitle').innerText = res.product.nama;
-        
-        const modalImg = document.getElementById('modalProductImg');
-        modalImg.src = formatImageUrl(res.product.url_foto);
-        modalImg.onerror = function() {
-          this.onerror = null;
-          this.src = 'https://placehold.co/400x300/f1f5f9/94a3b8?text=Gambar+Gagal';
-        };
-
-        document.getElementById('modalProductPrice').innerText = 'Rp ' + parseFloat(res.product.harga).toLocaleString('id-ID');
-        
-        const stockEl = document.getElementById('modalProductStock');
-        if (stock <= 0) {
-          stockEl.innerHTML = '<span class="text-red-500 font-bold">Stok Habis</span>';
-        } else if (stock <= 5) {
-          stockEl.innerHTML = '<span class="text-amber-600 font-semibold">Stok Terbatas: Tinggal ' + stock + ' pcs</span>';
-        } else {
-          stockEl.innerText = 'Stok Tersedia: ' + stock + ' pcs';
-        }
-
-        document.getElementById('modalProductDesc').innerText = res.product.deskripsi || 'Tidak ada deskripsi.';
-        document.getElementById('modalProductQty').innerText = modalQty;
-
-        const btnAddToCart = document.getElementById('modalBtnAddToCart');
-        if (btnAddToCart) {
-          if (stock <= 0) {
-            btnAddToCart.disabled = true;
-            btnAddToCart.className = 'w-full py-2.5 bg-slate-200 text-slate-400 font-bold text-xs uppercase tracking-wider rounded-xl cursor-not-allowed';
-            btnAddToCart.innerText = 'STOK HABIS';
-          } else {
-            btnAddToCart.disabled = false;
-            btnAddToCart.className = 'w-full py-2.5 bg-brand-blue hover:bg-brand-darkblue text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow active:scale-95';
-            btnAddToCart.innerText = 'TAMBAH KE KERANJANG';
-          }
-        }
-
-        document.getElementById('productDetailModal').classList.remove('hidden');
-      }
+      if (!res.success || !res.product) { showToast(res.message || 'Produk tidak ditemukan.'); return; }
+      selectedModalProduct = res.product;
+      productCache.set(res.product.id_produk, res.product);
+      modalQty = 1;
+      document.getElementById('modalProductBrand').textContent = res.product.brand || settingsState.nama_toko || 'TOKO ABANGDA';
+      document.getElementById('modalProductTitle').textContent = res.product.nama;
+      const image = document.getElementById('modalProductImg');
+      image.src = formatImageUrl(res.product.url_foto);
+      image.onerror = function() { this.onerror = null; this.src = 'https://placehold.co/400x300/f1f5f9/94a3b8?text=Produk'; };
+      document.getElementById('modalProductDesc').textContent = res.product.deskripsi || 'Tidak ada deskripsi.';
+      document.getElementById('modalProductQty').textContent = modalQty;
+      const button = document.getElementById('modalBtnAddToCart');
+      button.disabled = false;
+      button.textContent = 'Tambah ke Keranjang';
+      updateModalPricing();
+      document.getElementById('productDetailModal').classList.remove('hidden');
     }, productId);
   }
 
@@ -857,84 +866,48 @@
   }
 
   function updateModalQty(delta) {
-    const maxStock = selectedModalProduct ? (parseInt(selectedModalProduct.stok) || 0) : 999;
-    if (maxStock <= 0) return;
-
-    const newQty = modalQty + delta;
-    if (newQty < 1) return;
-    if (newQty > maxStock) {
-      showToast('Maksimal pembelian: ' + maxStock + ' pcs (Stok terbatas)');
-      return;
-    }
-
-    modalQty = newQty;
-    document.getElementById('modalProductQty').innerText = modalQty;
+    const next = modalQty + delta;
+    if (!Number.isSafeInteger(next) || next < 1) return;
+    modalQty = next;
+    document.getElementById('modalProductQty').textContent = modalQty;
+    updateModalPricing();
   }
 
-  function quickAddToCart(id, nama, harga, maxStock, url_foto, brand) {
+  // The unused fifth argument keeps compatibility with existing calls; availability is manual.
+  function addToCartInternal(id, nama, harga, qty, unused, url_foto, brand, hargaGrosir, minimumGrosir) {
     if (!cartReadyForChanges()) return;
-    const stock = maxStock !== undefined ? maxStock : 999;
-    if (stock <= 0) {
-      showToast('Maaf, produk ini sedang habis!');
-      return;
-    }
-
     const existing = cartState.find(function(item) { return item.id === id; });
-    const currentQtyInCart = existing ? existing.qty : 0;
-
-    if (currentQtyInCart + 1 > stock) {
-      showToast('Stok tidak mencukupi! Tersisa: ' + stock + ' pcs');
-      return;
-    }
-
-    addToCartInternal(id, nama, harga, 1, stock, url_foto, brand);
-    showToast('Ditambahkan ke Keranjang!');
-  }
-
-  function addToCartFromModal() {
-    if (!cartReadyForChanges()) return;
-    if (selectedModalProduct) {
-      const stock = parseInt(selectedModalProduct.stok) || 0;
-      if (stock <= 0) {
-        showToast('Maaf, produk ini sedang habis!');
-        return;
-      }
-
-      const existing = cartState.find(function(item) { return item.id === selectedModalProduct.id_produk; });
-      const currentQtyInCart = existing ? existing.qty : 0;
-
-      if (currentQtyInCart + modalQty > stock) {
-        showToast('Stok tidak mencukupi! Tersisa: ' + stock + ' pcs');
-        return;
-      }
-
-      addToCartInternal(selectedModalProduct.id_produk, selectedModalProduct.nama, selectedModalProduct.harga, modalQty, stock, selectedModalProduct.url_foto, selectedModalProduct.brand);
-      closeProductModal();
-      showToast('Ditambahkan ke Keranjang!');
-      toggleCartDrawer(true);
-    }
-  }
-
-  function addToCartInternal(id, nama, harga, qty, maxStock, url_foto, brand) {
-    if (!cartReadyForChanges()) return;
-    let existing = cartState.find(function(item) { return item.id === id; });
-    if (!existing && cartState.length >= 100) {
-      showToast('Maksimal 100 jenis produk dalam satu keranjang.');
-      return;
-    }
-    if (existing) {
-      existing.qty += qty;
-      if (maxStock !== undefined) existing.maxStock = maxStock;
-      if (url_foto && !existing.url_foto) existing.url_foto = url_foto;
-      if (brand && !existing.brand) existing.brand = brand;
-    } else {
-      cartState.push({ id: id, nama: nama, harga: harga, qty: qty, maxStock: maxStock, url_foto: url_foto || '', brand: brand || '' });
-    }
+    if (!existing && cartState.length >= 100) { showToast('Maksimal 100 jenis produk dalam satu keranjang.'); return; }
+    const next = (existing ? existing.qty : 0) + qty;
+    if (!Number.isSafeInteger(next) || next < 1) { showToast('Jumlah produk tidak valid.'); return; }
+    const cached = productCache.get(id);
+    const details = cached || {harga:harga, harga_grosir:hargaGrosir || 0, min_beli_grosir:minimumGrosir || 0};
+    const item = existing || {id:id, nama:nama, url_foto:url_foto || '', brand:brand || ''};
+    item.qty = next;
+    item.harga_normal = Number(details.harga);
+    item.harga_grosir = Number(details.harga_grosir) || 0;
+    item.min_beli_grosir = Number(details.min_beli_grosir) || 0;
+    item.harga = unitPrice(item, next);
+    if (!existing) cartState.push(item);
     updateCartBadge();
     renderCartUI();
   }
 
+  function quickAddToCart(id, nama, harga, unused, url_foto, brand, hargaGrosir, minimumGrosir) {
+    addToCartInternal(id, nama, harga, 1, null, url_foto, brand, hargaGrosir, minimumGrosir);
+  }
+
+  function addToCartFromModal() {
+    if (!selectedModalProduct) return;
+    const p = selectedModalProduct;
+    if (!cartReadyForChanges()) return;
+    addToCartInternal(p.id_produk, p.nama, p.harga, modalQty, null, p.url_foto, p.brand, p.harga_grosir, p.min_beli_grosir);
+    closeProductModal();
+    toggleCartDrawer(true);
+  }
+
   function updateCartBadge() {
+    repriceCart();
     saveCartToStorage();
     const badge = document.getElementById('cartBadge');
     if (!badge) return;
@@ -950,16 +923,19 @@
     if (drawerSubtitle) {
       drawerSubtitle.innerText = totalQty + ' Produk Dipilih';
     }
+    refreshProductCards();
+    updateModalPricing();
   }
 
   function renderCartUI() {
+    repriceCart();
     const container = document.getElementById('cartItemsContainer');
     const summary = document.getElementById('cartSummaryBox');
     const checkoutReview = document.getElementById('checkoutItemsReview');
     if (!container || !summary) return;
 
     if (cartRestoreRequired) {
-      container.textContent = cartIsRestoring ? 'Harga dan stok keranjang sedang diperiksa...' : 'Keranjang tersimpan menunggu pemeriksaan. Gunakan tombol di atas untuk melanjutkan.';
+      container.textContent = cartIsRestoring ? 'Harga keranjang sedang diperiksa...' : 'Keranjang tersimpan menunggu pemeriksaan. Gunakan tombol di atas untuk melanjutkan.';
       summary.classList.add('hidden');
       if (checkoutReview) checkoutReview.textContent = '';
       return;
@@ -991,6 +967,7 @@
       }
       html += '<h4 class="font-semibold text-xs text-slate-800 truncate leading-tight mt-0.5">' + item.nama + '</h4>';
       html += '<p class="text-[11px] text-brand-blue font-bold mt-0.5">Rp ' + item.harga.toLocaleString('id-ID') + '</p>';
+      if (item.min_beli_grosir > 0 && item.qty >= item.min_beli_grosir) html += '<p class="text-[10px] text-emerald-700">Harga grosir</p>';
       html += '</div>';
       html += '</div>';
       html += '<div class="flex items-center gap-1.5 flex-shrink-0">';
@@ -1007,6 +984,7 @@
       checkoutHtml += '<div class="min-w-0">';
       checkoutHtml += '<p class="text-xs font-medium text-slate-800 truncate">' + item.nama + (item.brand ? ' (' + item.brand + ')' : '') + '</p>';
       checkoutHtml += '<p class="text-[10px] text-slate-400">' + item.qty + 'x @ Rp ' + item.harga.toLocaleString('id-ID') + '</p>';
+      if (item.min_beli_grosir > 0 && item.qty >= item.min_beli_grosir) checkoutHtml += '<p class="text-[10px] text-emerald-700">Harga grosir</p>';
       checkoutHtml += '</div>';
       checkoutHtml += '</div>';
       checkoutHtml += '<span class="text-xs font-bold text-slate-700 flex-shrink-0">Rp ' + subtotal.toLocaleString('id-ID') + '</span>';
@@ -1021,6 +999,7 @@
   }
 
   function applyCoupon() {
+    repriceCart();
     const input = document.getElementById('coCouponCode');
     const code = input ? input.value.trim().toUpperCase() : '';
     if (!code) {
@@ -1078,6 +1057,7 @@
   }
 
   function updateCheckoutTotals() {
+    repriceCart();
     const subtotal = cartState.reduce(function(acc, item) { return acc + (item.harga * item.qty); }, 0);
     let diskonNominal = 0;
 
@@ -1123,15 +1103,11 @@
   function changeCartQty(idx, delta) {
     if (!cartReadyForChanges()) return;
     const item = cartState[idx];
-    if (delta > 0 && item.maxStock !== undefined && item.qty + delta > item.maxStock) {
-      showToast('Stok maksimal tercapai (' + item.maxStock + ' pcs)');
-      return;
-    }
-
-    item.qty += delta;
-    if (item.qty <= 0) {
-      cartState.splice(idx, 1);
-    }
+    if (!item) return;
+    const next = item.qty + delta;
+    if (!Number.isSafeInteger(next)) return;
+    if (next <= 0) cartState.splice(idx, 1);
+    else item.qty = next;
     updateCartBadge();
     renderCartUI();
   }
