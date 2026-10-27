@@ -35,14 +35,19 @@ const {fixture}=require('./helpers/apps-script.cjs');
   // The + control updates both price and wholesale badge exactly at the threshold.
   await card.locator('[data-role="add"]').click();
   assert.equal(await card.locator('[data-role="quantity"]').innerText(),'1');
+  assert.match(await page.locator('#cartItemsContainer').innerText(),/Tambahkan 2 lagi untuk dapat harga grosir/);
+  assert.match(await page.locator('#checkoutItemsReview').innerText(),/Tambahkan 2 lagi untuk dapat harga grosir/);
   assert.equal(await card.locator('[data-role="price"]').innerText(),'Rp 34.500');
   await card.getByRole('button',{name:'Tambah Beras',exact:true}).click();
   assert.equal(await card.locator('[data-role="quantity"]').innerText(),'2');
+  assert.match(await page.locator('#checkoutItemsReview').innerText(),/Tambahkan 1 lagi untuk dapat harga grosir/);
   assert.equal(await card.locator('[data-role="price"]').innerText(),'Rp 34.500');
   await card.getByRole('button',{name:'Tambah Beras',exact:true}).click();
   assert.equal(await card.locator('[data-role="quantity"]').innerText(),'3');
   assert.equal(await card.locator('[data-role="price"]').innerText(),'Rp 30.000');
   assert.equal(await card.locator('[data-role="wholesale"]').innerText(),'Harga grosir aktif');
+  assert.match(await page.locator('#checkoutItemsReview').innerText(),/Harga grosir aktif/);
+  assert.doesNotMatch(await page.locator('#checkoutItemsReview').innerText(),/Tambahkan/);
   await page.evaluate(()=>toggleCartDrawer(true));
   assert.match(await page.locator('#cartItemsContainer').innerText(),/Harga grosir/);
   assert.match(await page.locator('#cartTotalPrice').innerText(),/90\.000/);
@@ -50,6 +55,7 @@ const {fixture}=require('./helpers/apps-script.cjs');
   await card.getByRole('button',{name:'Kurangi Beras',exact:true}).click();
   assert.equal(await card.locator('[data-role="price"]').innerText(),'Rp 34.500');
   assert.equal(await page.evaluate(()=>cartState[0].harga),34500);
+  assert.match(await page.locator('#cartItemsContainer').innerText(),/Tambahkan 1 lagi untuk dapat harga grosir/);
   // Modal price includes quantities already in the cart and has no stock gate.
   await card.getByRole('button',{name:'Lihat detail Beras',exact:true}).click();
   await page.locator('#productDetailModal').waitFor({state:'visible'});

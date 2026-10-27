@@ -952,6 +952,11 @@
     let total = 0;
 
     cartState.forEach(function(item, idx) {
+      const wholesaleHint = item.min_beli_grosir > 0 && item.harga_grosir > 0
+        ? (item.qty >= item.min_beli_grosir
+          ? 'Harga grosir aktif'
+          : 'Tambahkan ' + (item.min_beli_grosir - item.qty) + ' lagi untuk dapat harga grosir')
+        : '';
       let subtotal = item.harga * item.qty;
       total += subtotal;
       let imgUrl = formatImageUrl(item.url_foto);
@@ -967,7 +972,7 @@
       }
       html += '<h4 class="font-semibold text-xs text-slate-800 truncate leading-tight mt-0.5">' + item.nama + '</h4>';
       html += '<p class="text-[11px] text-brand-blue font-bold mt-0.5">Rp ' + item.harga.toLocaleString('id-ID') + '</p>';
-      if (item.min_beli_grosir > 0 && item.qty >= item.min_beli_grosir) html += '<p class="text-[10px] text-emerald-700">Harga grosir</p>';
+      if (wholesaleHint) html += '<p class="text-[10px] text-emerald-700 whitespace-normal break-words mt-0.5">' + wholesaleHint + '</p>';
       html += '</div>';
       html += '</div>';
       html += '<div class="flex items-center gap-1.5 flex-shrink-0">';
@@ -984,7 +989,7 @@
       checkoutHtml += '<div class="min-w-0">';
       checkoutHtml += '<p class="text-xs font-medium text-slate-800 truncate">' + item.nama + (item.brand ? ' (' + item.brand + ')' : '') + '</p>';
       checkoutHtml += '<p class="text-[10px] text-slate-400">' + item.qty + 'x @ Rp ' + item.harga.toLocaleString('id-ID') + '</p>';
-      if (item.min_beli_grosir > 0 && item.qty >= item.min_beli_grosir) checkoutHtml += '<p class="text-[10px] text-emerald-700">Harga grosir</p>';
+      if (wholesaleHint) checkoutHtml += '<p class="text-[10px] text-emerald-700 whitespace-normal break-words mt-0.5">' + wholesaleHint + '</p>';
       checkoutHtml += '</div>';
       checkoutHtml += '</div>';
       checkoutHtml += '<span class="text-xs font-bold text-slate-700 flex-shrink-0">Rp ' + subtotal.toLocaleString('id-ID') + '</span>';
