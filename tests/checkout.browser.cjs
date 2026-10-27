@@ -64,8 +64,6 @@ const path = require('node:path');
  assert.match(await page.locator('#confirmWhatsAppLink').getAttribute('href'),/^https:\/\/wa\.me\//);
  assert.equal(await page.locator('#confirmWhatsAppLink').getAttribute('target'),'_blank');
  assert.equal(await page.locator('#trackOrderIdInput').inputValue(),'TA-20261025-001');
- assert.equal(await page.locator('#trackOrderTokenInput').inputValue(),'a'.repeat(64));
- assert.equal(await page.locator('#confirmTrackingToken').inputValue(),'a'.repeat(64));
  assert.equal(await page.locator('#cartBadge').isVisible(),false);
  assert.equal(context.pages().length,1);
  // Reopening the confirmation link does not submit createOrder again.

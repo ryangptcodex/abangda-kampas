@@ -41,13 +41,8 @@ const { fixture } = require('./helpers/apps-script.cjs');
     await page.locator('#btnSubmitCheckout').click();
     await page.locator('#pageKonfirmasi').waitFor({state:'visible'});
     const orderId = await page.locator('#confirmOrderId').innerText();
-    const token = await page.locator('#confirmTrackingToken').inputValue();
-    assert.match(token,/^[a-f0-9]{64}$/);
-    assert.equal(await page.locator('#trackOrderTokenInput').inputValue(),token);
-    assert.equal(await page.locator('#confirmTrackingToken').getAttribute('readonly'),'');
-    assert.match(await page.locator('#confirmWhatsAppLink').getAttribute('href'),new RegExp(token));
-    assert.equal(JSON.stringify(f.tables).includes(token),false);
-    assert.equal(page.url().includes(token),false);
+    assert.equal(await page.locator('#confirmTrackingToken, #trackOrderTokenInput').count(),0);
+    assert.doesNotMatch(decodeURIComponent(await page.locator('#confirmWhatsAppLink').getAttribute('href')),/kode pelacakan/i);
     await page.getByRole('button',{name:'Lacak Pesanan Ini',exact:true}).click();
     await page.locator('#btnSubmitTrack').click();
     await page.waitForFunction(() => document.getElementById('trackResultBox').textContent.includes('Menunggu Konfirmasi Stok'));
@@ -56,22 +51,21 @@ const { fixture } = require('./helpers/apps-script.cjs');
     assert.equal(result.includes('Nama pribadi pemesan'),false);
     assert.equal(result.includes('Alamat pribadi pemesan'),false);
     assert.equal(result.includes('081234567890'),false);
-    assert.equal(result.includes(token),false);
-    // Changing either credential immediately clears previously authorized details.
-    await page.locator('#trackOrderTokenInput').fill('b'.repeat(64));
+    // Changing the ID immediately clears previous details.
+    await page.locator('#trackOrderIdInput').fill('TA-20990101-999');
     assert.equal(await page.locator('#trackResultBox').isVisible(),false);
     assert.equal(await page.locator('#trackResultBox').textContent(),'');
     await page.locator('#btnSubmitTrack').click();
-    await page.waitForFunction(() => document.getElementById('trackResultBox').textContent.includes('tidak valid'));
+    await page.waitForFunction(() => document.getElementById('trackResultBox').textContent.includes('tidak ditemukan'));
     assert.equal((await page.locator('#trackResultBox').textContent()).includes('Beras'),false);
-    // No network lookup with an empty/malformed token, including direct invocation.
-    await page.locator('#trackOrderTokenInput').fill('');
+    // No network lookup with an empty ID, including direct invocation.
+    await page.locator('#trackOrderIdInput').fill('');
     const before = counts.trackOrder;
     await page.evaluate(() => submitTrackOrder());
     assert.equal(counts.trackOrder,before);
     assert.equal(await page.locator('#trackResultBox').isVisible(),false);
-    // Reject a delayed authorized response after the user switches credentials.
-    await page.locator('#trackOrderTokenInput').fill(token);
+    // Reject a delayed response after the user switches IDs.
+    await page.locator('#trackOrderIdInput').fill(orderId);
     delayNextTracking = true;
     await page.locator('#btnSubmitTrack').click();
     await page.waitForFunction(() => document.getElementById('btnSubmitTrack').disabled);
@@ -82,21 +76,13 @@ const { fixture } = require('./helpers/apps-script.cjs');
     await page.waitForFunction(n => window.completedServerCalls > n,completed);
     assert.equal(await page.locator('#trackResultBox').textContent(),'');
     assert.equal(await page.locator('#trackResultBox').isVisible(),false);
-    // Stored strings are rendered as text, even for authorized results.
+    // Stored strings are rendered as text.
     f.tables.orders[1][7] = JSON.stringify([{nama:'<img src=x onerror=alert(1)>',brand:'<svg onload=alert(1)>',qty:1,harga:34500}]);
     await page.locator('#trackOrderIdInput').fill(orderId);
     await page.locator('#btnSubmitTrack').click();
     await page.waitForFunction(() => document.getElementById('trackResultBox').textContent.includes('<img'));
     assert.equal(await page.locator('#trackResultBox img, #trackResultBox svg').count(),0);
-    // Rotation by the server-side spreadsheet action invalidates the code in the browser.
-    f.context.issueTrackingCodeForSelectedOrder_();
-    const rotated = f.alerts.at(-1)[1].match(/Kode: ([a-f0-9]{64})/)[1];
-    await page.locator('#btnSubmitTrack').click();
-    await page.waitForFunction(() => document.getElementById('trackResultBox').textContent.includes('tidak valid'));
-    await page.locator('#trackOrderTokenInput').fill(rotated);
-    await page.locator('#btnSubmitTrack').click();
-    await page.waitForFunction(() => document.getElementById('trackResultBox').textContent.includes('<img'));
     assert.deepEqual(errors,[]);
-    console.log('PASS browser + actual backend with simulated Sheets: checkout token, private status, wrong/missing code denial, no contact exposure, stale-response rejection, safe text rendering, admin rotation.');
+    console.log('PASS browser + actual backend with simulated Sheets: ID-only tracking, unknown/missing ID denial, no contact exposure, stale-response rejection, safe text rendering.');
   } finally {await browser.close();}
 })().catch(error=>{console.error(error);process.exit(1);});

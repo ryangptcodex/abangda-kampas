@@ -14,7 +14,6 @@ function onOpen(e) {
     .addItem('🏷️ Buka Brand', 'openBrandsSheet')
     .addItem('🖼️ Buka Banner', 'openBannersSheet')
     .addItem('🧾 Buka Pesanan', 'openOrdersSheet')
-    .addItem('🔐 Buat/Ganti Kode Pelacakan', 'issueTrackingCodeForSelectedOrder_')
     .addItem('🎟️ Buka Kupon', 'openCouponsSheet')
     .addItem('⚙️ Buka Pengaturan', 'openSettingsSheet')
     .addToUi();
@@ -103,8 +102,7 @@ function setupDatabase_() {
         'tipe_pengiriman',
         'detail_produk',
         'total_harga',
-        'status',
-        'tracking_token_hash'
+        'status'
       ],
       coupons: [
         'kode_kupon',

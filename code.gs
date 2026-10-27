@@ -546,9 +546,6 @@ function createOrder(orderPayload) {
     required.forEach(function(field) {
       if (!orderHeaders.includes(field)) throw new Error('Kolom orders belum lengkap: ' + field);
     });
-    const trackingToken = newTrackingToken_();
-    const trackingHash = trackingHash_(trackingToken);
-    ensureTrackingColumn_(orders, orderHeaders);
     const now = new Date();
     const date = Utilities.formatDate(now, 'Asia/Jakarta', 'yyyyMMdd');
     const dateText = Utilities.formatDate(now, 'Asia/Jakarta', 'dd/MM/yyyy HH:mm:ss');
@@ -566,8 +563,7 @@ function createOrder(orderPayload) {
       id_pesanan: orderId, tgl_pesan: dateText, nama_pemesan: name,
       no_whatsapp: "'" + phone, alamat: summary.alamat, catatan: note || '-',
       tipe_pengiriman: delivery, detail_produk: JSON.stringify(items),
-      total_harga: total, status: 'Menunggu Konfirmasi Stok',
-      tracking_token_hash: trackingHash
+      total_harga: total, status: 'Menunggu Konfirmasi Stok'
     };
     const newRow = orderHeaders.map(function(header) {
       return Object.prototype.hasOwnProperty.call(values, header) ? cell(values[header]) : '';
@@ -577,8 +573,7 @@ function createOrder(orderPayload) {
     orderWritten = true;
     let message = '*PESANAN BARU - TOKO ABANGDA*\n';
     message += '*ID Pesanan:* ' + orderId + '\n*Tanggal:* ' + dateText + '\n';
-    message += '*Kode pelacakan pribadi:* ' + trackingToken + '\n';
-    message += '_Simpan ID dan kode ini untuk melacak pesanan. Jangan bagikan kode kepada pihak lain._\n';
+    message += '_Simpan ID pesanan ini untuk melacak pesanan._\n';
     message += '*Nama:* ' + name + '\n*No. WA:* ' + phone + '\n';
     message += '*Pengiriman:* ' + delivery + '\n';
     if (summary.alamat) message += '*Alamat:* ' + summary.alamat + '\n';
@@ -590,7 +585,7 @@ function createOrder(orderPayload) {
     if (couponCode) message += 'Diskon (' + couponCode + '): -Rp ' + discount.toLocaleString('id-ID') + '\n';
     message += '*Estimasi total produk: Rp ' + total.toLocaleString('id-ID') + '*\n';
     message += '_Mohon konfirmasi stok, ongkir jika ada, total akhir, dan cara pembayaran. Terima kasih!_';
-    return { success: true, orderId: orderId, trackingToken: trackingToken, waUrl: 'https://wa.me/' + waTarget + '?text=' + encodeURIComponent(message), summary: summary };
+    return { success: true, orderId: orderId, waUrl: 'https://wa.me/' + waTarget + '?text=' + encodeURIComponent(message), summary: summary };
   } catch (error) {
     if (quotaRange && previousQuota !== null && !orderWritten) {
       try { quotaRange.setValue(previousQuota); }
@@ -602,49 +597,14 @@ function createOrder(orderPayload) {
   }
 }
 
-// Helpers ending in _ are private to Apps Script and cannot be called with google.script.run.
-function newTrackingToken_() {
-  const token = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').toLowerCase();
-  if (!/^[a-f0-9]{64}$/.test(token)) throw new Error('Kode pelacakan belum berhasil dibuat. Silakan coba lagi.');
-  return token;
-}
-
-function trackingHash_(token) {
-  return Utilities.computeDigest(
-    Utilities.DigestAlgorithm.SHA_256,
-    token,
-    Utilities.Charset.UTF_8
-  ).map(function(byte) {
-    return (byte & 255).toString(16).padStart(2, '0');
-  }).join('');
-}
-
-function sameTrackingHash_(a, b) {
-  if (!/^[a-f0-9]{64}$/.test(a) || !/^[a-f0-9]{64}$/.test(b)) return false;
-  let difference = 0;
-  for (let i = 0; i < 64; i++) difference |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return difference === 0;
-}
-
-function ensureTrackingColumn_(sheet, headers) {
-  let index = headers.indexOf('tracking_token_hash');
-  if (index >= 0) return index;
-  index = headers.length;
-  if (sheet.getMaxColumns() <= index) sheet.insertColumnAfter(sheet.getMaxColumns());
-  sheet.getRange(1, index + 1).setValue('tracking_token_hash');
-  headers.push('tracking_token_hash');
-  return index;
-}
-
-function trackOrder(orderId, trackingToken) {
+function trackOrder(orderId) {
   const denied = {
     success: false,
-    message: 'ID pesanan atau kode pelacakan tidak valid. Periksa keduanya, atau hubungi admin toko untuk pesanan lama/kode yang hilang.'
+    message: 'ID pesanan tidak ditemukan. Periksa kembali ID pesanan Anda.'
   };
   try {
     const id = String(orderId || '').trim().toUpperCase();
-    const token = String(trackingToken || '').trim().toLowerCase();
-    if (!/^TA-\d{8}-\d{3,}$/.test(id) || !/^[a-f0-9]{64}$/.test(token)) return denied;
+    if (!/^TA-\d{8}-\d{3,}$/.test(id)) return denied;
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss && ss.getSheetByName('orders');
     if (!sheet || sheet.getLastRow() <= 1) return denied;
@@ -653,12 +613,11 @@ function trackOrder(orderId, trackingToken) {
     const values = range.getValues();
     const headers = data[0];
     const idCol = headers.indexOf('id_pesanan');
-    const hashCol = headers.indexOf('tracking_token_hash');
-    if (idCol < 0 || hashCol < 0) return denied;
+    if (idCol < 0) return denied;
     const rowIndex = data.findIndex(function(row, i) {
       return i > 0 && String(row[idCol]).trim().toUpperCase() === id;
     });
-    if (rowIndex < 1 || !sameTrackingHash_(String(data[rowIndex][hashCol] || ''), trackingHash_(token))) return denied;
+    if (rowIndex < 1) return denied;
     const row = data[rowIndex];
     function field(name) {
       const index = headers.indexOf(name);
@@ -688,54 +647,4 @@ function trackOrder(orderId, trackingToken) {
     // Do not expose exception text, credential material, or order existence publicly.
     return denied;
   }
-}
-
-// Spreadsheet menu only; the trailing _ prevents anonymous browser RPC calls.
-function issueTrackingCodeForSelectedOrder_() {
-  const ui = SpreadsheetApp.getUi();
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss && ss.getActiveSheet();
-  const selection = sheet && sheet.getActiveRange();
-  if (!sheet || sheet.getName() !== 'orders' || !selection || selection.getNumRows() !== 1 || selection.getRow() <= 1 || selection.getRow() > sheet.getLastRow()) {
-    ui.alert('Pilih satu baris pesanan pada sheet orders terlebih dahulu.');
-    return;
-  }
-  const row = selection.getRow();
-  let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
-  let idColumn = headers.indexOf('id_pesanan');
-  const orderId = idColumn < 0 ? '' : sheet.getRange(row, idColumn + 1).getDisplayValue();
-  if (!/^TA-\d{8}-\d{3,}$/.test(orderId)) {
-    ui.alert('ID pesanan pada baris ini tidak valid.');
-    return;
-  }
-  // UI prompts suspend execution: acquire the lock only after confirmation.
-  const answer = ui.alert('Buat/ganti kode pelacakan', 'Pesanan ' + orderId + ': kode lama akan dinonaktifkan. Lanjutkan?', ui.ButtonSet.YES_NO);
-  if (answer !== ui.Button.YES) return;
-  const lock = LockService.getScriptLock();
-  let locked = false;
-  let token = '';
-  let failure = '';
-  try {
-    if (!lock.tryLock(15000)) throw new Error('Ada proses pesanan lain. Silakan coba lagi.');
-    locked = true;
-    headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
-    idColumn = headers.indexOf('id_pesanan');
-    if (idColumn < 0 || sheet.getRange(row, idColumn + 1).getDisplayValue() !== orderId) {
-      throw new Error('Baris pesanan berubah. Pilih kembali pesanan yang benar.');
-    }
-    token = newTrackingToken_();
-    const hash = trackingHash_(token);
-    const column = ensureTrackingColumn_(sheet, headers);
-    sheet.getRange(row, column + 1).setValue(hash);
-    SpreadsheetApp.flush();
-  } catch (error) {
-    failure = error.message || 'Kode pelacakan belum berhasil dibuat.';
-  } finally {
-    if (locked) lock.releaseLock();
-  }
-  if (failure) {
-    ui.alert(failure);
-    return;
-  }
-  ui.alert('Kode pelacakan pribadi', 'ID Pesanan: ' + orderId + '\nKode: ' + token + '\n\nSalin sekarang dan berikan hanya kepada pelanggan pemilik pesanan. Kode mentah tidak disimpan di Sheets.', ui.ButtonSet.OK);
 }

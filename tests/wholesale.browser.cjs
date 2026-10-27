@@ -81,8 +81,8 @@ const {fixture}=require('./helpers/apps-script.cjs');
   assert.match(await page.locator('#coTotalTagihan').innerText(),/81\.000/);
   await page.locator('#btnSubmitCheckout').click();await page.locator('#pageKonfirmasi').waitFor({state:'visible'});
   assert.match(await page.locator('#confirmSummary').innerText(),/81\.000/);
-  const id=await page.locator('#confirmOrderId').innerText();const token=await page.locator('#confirmTrackingToken').inputValue();
-  const order=f.context.trackOrder(id,token);assert.equal(order.order.total_harga,81000);assert.equal(order.order.items[0].harga,30000);
+  const id=await page.locator('#confirmOrderId').innerText();
+  const order=f.context.trackOrder(id);assert.equal(order.order.total_harga,81000);assert.equal(order.order.items[0].harga,30000);
   const message=new URL(await page.locator('#confirmWhatsAppLink').getAttribute('href')).searchParams.get('text');assert.match(message,/90\.000/);assert.match(message,/81\.000/);
   // Very narrow mobile and desktop widths do not clip category labels.
   for(const width of [320,768,1280]){

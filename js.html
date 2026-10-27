@@ -1194,10 +1194,6 @@ function submitCheckout() {
     const trackInput = document.getElementById('trackOrderIdInput');
     clearTrackingResult();
     if (trackInput) trackInput.value = res.orderId;
-    const trackToken = document.getElementById('trackOrderTokenInput');
-    const confirmToken = document.getElementById('confirmTrackingToken');
-    if (trackToken) trackToken.value = res.trackingToken || '';
-    if (confirmToken) confirmToken.value = res.trackingToken || '';
     cartState = [];
     updateCartBadge();
     renderCartUI();
@@ -1274,15 +1270,13 @@ function submitCheckout() {
 
   function submitTrackOrder() {
     const input = document.getElementById('trackOrderIdInput');
-    const tokenInput = document.getElementById('trackOrderTokenInput');
     const orderId = input ? input.value.trim() : '';
-    const token = tokenInput ? tokenInput.value.trim() : '';
     const resultBox = document.getElementById('trackResultBox');
     const btn = document.getElementById('btnSubmitTrack');
     if (!btn || !resultBox || btn.disabled) return;
     clearTrackingResult();
-    if (!orderId || !/^[a-f0-9]{64}$/i.test(token)) {
-      showToast('Masukkan ID pesanan dan kode pelacakan 64 karakter yang diberikan saat checkout.');
+    if (!/^TA-\d{8}-\d{3,}$/i.test(orderId)) {
+      showToast('Masukkan ID pesanan yang diberikan saat checkout.');
       return;
     }
     const version = ++trackingRequestVersion;
@@ -1290,14 +1284,14 @@ function submitCheckout() {
     btn.innerHTML = '<i class="fa-solid fa-circle-notch animate-spin"></i> Memeriksa';
     safeRun('trackOrder', function(res) {
       if (version !== trackingRequestVersion) return;
-      if (input.value.trim() !== orderId || tokenInput.value.trim() !== token) {
+      if (input.value.trim() !== orderId) {
         clearTrackingResult();
         return;
       }
       btn.disabled = false;
       btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Cari';
       if (!res.success || !res.order) {
-        resultBox.textContent = res.message || 'ID pesanan atau kode pelacakan tidak valid.';
+        resultBox.textContent = res.message || 'ID pesanan tidak ditemukan.';
         resultBox.className = 'bg-red-50 text-red-700 p-3 rounded-xl text-xs border border-red-100';
         return;
       }
@@ -1320,7 +1314,7 @@ function submitCheckout() {
       html += '</div><div class="flex justify-between border-t border-slate-100 pt-2 text-xs font-bold"><span>Total Produk:</span><span>Rp ' + (Number(order.total_harga) || 0).toLocaleString('id-ID') + '</span></div></div>';
       resultBox.className = 'space-y-2';
       resultBox.innerHTML = html;
-    }, orderId, token);
+    }, orderId);
   }
 
   function switchTab(tab) {

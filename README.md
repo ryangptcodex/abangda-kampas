@@ -1,4 +1,4 @@
-# Toko Abangda — transaksi dan pelacakan privat
+# Toko Abangda — transaksi dan pelacakan pesanan
 
 Aplikasi Google Apps Script yang terhubung ke Google Sheets. Nama toko tetap Toko Abangda.
 
@@ -54,10 +54,10 @@ Ganti seluruh isi file sesuai namanya; jangan gabungkan atau membuat backend dup
 
 1. Ganti backend yang ada dengan `code.gs` (di editor pengguna boleh bernama `Kode.gs`); jangan menambahkan backend duplikat.
 2. Ganti `js.html`, `index.html`, dan `setup.gs` dengan versi di repo ini. Keempat file harus memakai revisi yang sama. `css.html` tetap asli.
-3. Simpan semua file lalu uji URL `/dev`. Tidak perlu menjalankan ulang setup database. Kolom `tracking_token_hash` ditambahkan otomatis saat membuat pesanan atau kode pelacakan admin; data pesanan lama tidak dihapus.
-4. Muat ulang spreadsheet agar menu **Toko Abangda → Buat/Ganti Kode Pelacakan** muncul.
-5. Setelah hasil `/dev` benar, perbarui deployment `/exec` ke versi baru. Perbarui/nonaktifkan deployment publik lama yang masih menyediakan pelacakan hanya berdasarkan ID; menguji `/dev` saja tidak menutup akses pada backend lama.
-6. Uji satu pesanan nyata dengan produk uji: periksa harga/kupon, baris orders, kode pada konfirmasi, pesan WhatsApp, dan pelacakan dengan kode benar/salah. Akses Google Sheets dan deployment asli belum dapat diuji dari workspace ini.
+3. Simpan semua file lalu uji URL `/dev`. Tidak perlu menjalankan ulang setup database. Kolom lama `tracking_token_hash` boleh dibiarkan; tidak dipakai dan tidak dihapus.
+4. Muat ulang spreadsheet untuk memperbarui menu; menu kode pelacakan sudah dihapus.
+5. Setelah hasil `/dev` benar, perbarui deployment `/exec` ke versi baru.
+6. Uji satu pesanan: periksa harga/kupon, baris orders, pesan WhatsApp, dan pelacakan cukup dengan ID. Deployment asli belum diuji dari workspace ini.
 
 Harga dan nilai/min_belanja/kuota kupon harus berupa angka bulat nonnegatif. Masukkan 34500 sebagai angka; format tampilan mata uang di Sheets boleh digunakan. Kupon harus PERSEN (1–100) atau NOMINAL (lebih dari nol).
 
@@ -71,33 +71,21 @@ Ketersediaan diperiksa manual oleh admin melalui WhatsApp; tidak ada pembatasan 
 
 Setelah order tercatat, pelanggan melihat total server dan menekan tautan WhatsApp. Tautan dapat dibuka ulang tanpa membuat order baru. Keranjang dipertahankan bila checkout ditolak. Tidak ada pembayaran otomatis.
 
-## Pelacakan privat
+## Pelacakan dengan ID pesanan
 
-- Pesanan baru mendapat kode acak 64 karakter, dibuat dari dua UUID oleh Apps Script. Server menyimpan SHA-256 kode pada kolom `tracking_token_hash`, bukan kode mentah.
-- Pelanggan melihat kode di halaman konfirmasi, dan kode dicantumkan dalam pesan pesanan WhatsApp ke toko. Simpan bersama ID; jangan membagikannya kepada pihak lain.
-- Pelacakan memerlukan ID dan kode sekaligus. Kode kosong/salah, ID tidak ada, atau pesanan lama tanpa hash menghasilkan penolakan umum yang sama; tidak ada fallback ID saja atau nomor WhatsApp.
-- Respons yang sah hanya memuat ID/tanggal/status/pengiriman/item/total. Nama, nomor WhatsApp, alamat, catatan, hash, dan kode tidak disertakan dalam respons pelacakan.
-- Kode tidak dimasukkan ke URL halaman katalog atau penyimpanan browser. Tautan pesan WhatsApp memang memuat kode sebagai bagian pesan yang ditujukan kepada toko.
-- Mengubah ID/kode langsung membersihkan hasil sebelumnya. Respons yang terlambat untuk kredensial sebelumnya tidak ditampilkan.
-- Hash bukan kode yang dapat dibagikan kepada pelanggan; kode mentah tidak dapat dipulihkan dari hash.
+Pelanggan cukup memasukkan ID pesanan dari konfirmasi atau WhatsApp. Tidak ada kode pribadi, penerbitan hash baru, atau menu rotasi kode. Pesanan lama dengan atau tanpa hash tetap dapat dilacak. Kolom hash lama diabaikan tanpa mengubah data lama.
 
-## Pesanan lama atau kode hilang
+Siapa pun yang mengetahui atau menebak ID dapat melihat ringkasan: tanggal, status, pengiriman, item, dan total. Respons tidak menyertakan nama pemesan, nomor WhatsApp, alamat, atau catatan. Mengubah ID segera membersihkan hasil; respons terlambat untuk ID sebelumnya diabaikan. Teks tersimpan ditampilkan dengan escaping.
 
-1. Admin memverifikasi pemilik pesanan melalui proses layanan toko.
-2. Di sheet `orders`, pilih tepat satu baris pesanan, bukan header.
-3. Pilih menu **Toko Abangda → Buat/Ganti Kode Pelacakan** dan konfirmasi.
-4. Salin kode dari dialog lalu berikan hanya kepada pelanggan pemilik pesanan. Aplikasi tidak mengirim pesan otomatis.
-5. Jika kode sebelumnya ada, kode itu langsung tidak berlaku; data/order ID tidak berubah.
-
-Menu ini memanggil fungsi berakhiran `_`, yang tidak dapat dipanggil lewat `google.script.run`. Fungsi setup database juga menjadi `setupDatabase_` agar tidak tersedia sebagai RPC halaman publik; menu **Siapkan Database** tetap berfungsi. Jangan menjalankannya hanya untuk memasang revisi ini, karena migrasi awal dapat menata ulang kategori/pengaturan.
+Jangan menjalankan ulang setup database untuk memasang revisi ini. Cukup ganti seluruh isi `code.gs`/`Kode.gs`, `js.html`, `index.html`, dan `setup.gs`; `css.html` tidak berubah.
 
 ## Pemeriksaan lokal
 
-- `node tests/checkout.test.cjs`: 54 pemeriksaan backend, termasuk kalkulasi, kupon/grosir, hash, penolakan ID saja, pemisahan kode antar order, dukungan pesanan lama, rotasi admin, dan rekonsiliasi keranjang dari katalog terkini.
+- `node tests/checkout.test.cjs`: pemeriksaan backend, termasuk kalkulasi, kupon/grosir, pelacakan ID saja, dukungan pesanan lama, dan rekonsiliasi keranjang dari katalog terkini.
 - `node tests/checkout.browser.cjs`: uji Chromium pada ukuran HP untuk checkout, Cara Order, konfirmasi, dan WhatsApp; respons RPC disimulasikan.
 - `node tests/cart.browser.cjs`: penyimpanan pada origin browser stabil, refresh/buka ulang, harga terbaru tanpa pembatasan stok, data rusak/kedaluwarsa, gagal/retry, respons terlambat setelah discard, checkout sukses/gagal, dan storage ditolak/penuh. Menjalankan backend repo dengan layanan Sheets tiruan.
 - `node tests/wholesale.browser.cjs`: harga berubah tepat pada batas grosir dan kembali normal saat dikurangi; tanpa stok; modal menghitung jumlah gabungan; keranjang persisten; kupon, WhatsApp, pelacakan; nama kategori penuh pada viewport 320/390/768/1280 piksel.
-- `node tests/tracking.browser.cjs`: browser menjalankan kode klien dan backend repo, dengan layanan SpreadsheetApp/Utilities/LockService tiruan. Menguji penerbitan kode, lookup benar/salah, privasi respons, penolakan respons terlambat, escaping teks, dan rotasi kode.
+- `node tests/tracking.browser.cjs`: browser menjalankan kode klien dan backend repo, dengan layanan SpreadsheetApp/Utilities/LockService tiruan. Menguji lookup ID benar/salah, privasi kontak, penolakan respons terlambat, dan escaping teks.
 
 Uji browser memerlukan Node, Playwright (diverifikasi dengan 1.62.1), dan Chromium. Gunakan `CHROMIUM_PATH` jika executable bukan `/usr/bin/chromium`. CSS fixture lokal dipakai dalam tes dengan CDN diblokir; koneksi CDN di perangkat pengguna belum dibuktikan oleh tes ini. Tidak ada penulisan ke Sheets asli dalam tes lokal.
 
