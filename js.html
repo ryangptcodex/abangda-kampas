@@ -971,6 +971,8 @@
   }
 
   function renderCartUI() {
+    const checkoutButton = document.getElementById('btnSubmitCheckout');
+    if (checkoutButton && cartState.length) { checkoutButton.hidden = false; checkoutButton.style.removeProperty('display'); }
     repriceCart();
     const container = document.getElementById('cartItemsContainer');
     const summary = document.getElementById('cartSummaryBox');
@@ -1243,7 +1245,7 @@ function handoffWhatsApp_(res, target) {
   if (!notice) { notice=node_('div','bg-sky-50 border border-sky-200 p-3 rounded-xl text-xs space-y-2 mb-3');notice.id='orderHandoffNotice';document.querySelector('main').prepend(notice); }
   const line=node_('p','','Pesanan ');const id=node_('strong','',res.orderId);id.id='lastOrderId';line.append(id,document.createTextNode(res.cancelled ? ' sudah dibatalkan.' : opened ? ' sudah tercatat.' : ' sudah tercatat. Tekan tautan di bawah untuk membuka WhatsApp.'));
   notice.replaceChildren(line);
-  if(href){const link=node_('a','inline-flex text-brand-blue font-bold mr-3',opened ? 'Buka WhatsApp lagi' : 'Buka WhatsApp');link.id='orderWhatsAppLink';link.href=href;link.target='_blank';link.rel='noopener noreferrer';notice.append(link);}
+  if(href){const link=node_('a','inline-flex text-brand-blue font-bold mr-3',opened ? 'Buka WhatsApp lagi' : 'Lanjut ke WhatsApp');link.id='orderWhatsAppLink';link.href=href;link.target='_blank';link.rel='noopener noreferrer';notice.append(link);}
   const track=node_('button','text-brand-blue font-bold','Lacak Pesanan Ini');track.type='button';track.onclick=function(){clearTrackingResult();document.getElementById('trackOrderIdInput').value=res.orderId;switchTab('lacak');};notice.append(track);
 }
 
@@ -1272,15 +1274,15 @@ function submitCheckout() {
     kode_kupon: appliedCoupon ? appliedCoupon.code : ''
   };
   payload.request_id = checkoutRequestId_(payload);
-  // Reserve a tab during the click gesture; delayed RPC callbacks cannot reliably open popups.
-  const whatsappWindow = openCheckoutWindow_();
+  // Save on the form; the ready link opens WhatsApp directly from the next user gesture.
+  const whatsappWindow = null;
   cartCheckoutPending = true;
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-circle-notch animate-spin"></i> MENYIMPAN PESANAN...';
   safeRun('createOrder', function(res) {
     cartCheckoutPending = false;
     btn.disabled = false;
-    btn.innerHTML = '<i class="fa-brands fa-whatsapp text-lg"></i><span>Lanjut ke WhatsApp</span>';
+    btn.innerHTML = '<i class="fa-brands fa-whatsapp text-lg"></i><span>Siapkan Pesanan</span>';
     if (!res.success) {
       closeCheckoutWindow_(whatsappWindow);
       if(res.existingOrderId)showPreviousCheckout_(res.existingOrderId);
@@ -1298,8 +1300,12 @@ function submitCheckout() {
     updateCartBadge();
     renderCartUI();
     removeCoupon(true);
-    switchTab('home');
     handoffWhatsApp_(res,whatsappWindow);
+    const readyNotice = document.getElementById('orderHandoffNotice');
+    btn.before(readyNotice);
+    btn.hidden = true;
+    btn.style.display = 'none';
+    readyNotice.scrollIntoView({block:'nearest',behavior:'smooth'});
   }, payload);
 }
 

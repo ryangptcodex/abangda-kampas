@@ -132,3 +132,6 @@ Setelah mengganti `setup.gs` dan `Kode.gs` dengan versi terbaru, simpan dan buka
 Untuk tombol gambar pada spreadsheet, gunakan **Sisipkan → Gambar**, lalu **Tetapkan skrip** dengan nama `perbaruiSemua` (tanpa kurung). Menu dan gambar menjalankan fungsi yang sama; tombol gambar digunakan lewat browser desktop. Kode Apps Script dan deployment webapp tetap diperbarui terpisah.
 
 Nomor `settings.no_whatsapp` yang kosong, tidak valid, atau ganda tidak lagi memblokir katalog. Kontak WhatsApp disembunyikan dan peringatan pemesanan ditampilkan; checkout tetap menolak tujuan tidak valid. Isi nomor toko sebagai teks, misalnya format `628…` atau `08…`, dan jalankan Perbarui Semua untuk pemeriksaan.
+
+### Membuka WhatsApp tanpa tab menunggu
+Checkout sekarang menggunakan dua tahap pada form yang sama: **Siapkan Pesanan** mencatat pesanan dan memvalidasi total melalui Apps Script tanpa membuka tab kosong. Setelah berhasil, tautan **Lanjut ke WhatsApp** langsung membuka URL pesan yang sudah siap dari klik pengguna, tanpa panggilan server lagi. Kegagalan simpan mempertahankan keranjang. Waktu penyimpanan Google tetap bergantung pada layanan Google; membuka aplikasi WhatsApp bergantung pada perangkat/browser.
