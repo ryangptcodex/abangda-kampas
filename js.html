@@ -1364,6 +1364,9 @@ function submitCheckout() {
       return;
     }
 
+    const categoryBar = document.getElementById('filterCategoryPills');
+    if (categoryBar) categoryBar.classList.toggle('hidden', tab !== 'katalog');
+
     const pages = ['Home', 'Katalog', 'Checkout', 'Lacak', 'CaraOrder'];
     pages.forEach(function(p) {
       const el = document.getElementById('page' + p);
