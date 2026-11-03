@@ -9,7 +9,7 @@ test('failed vouchers do not consume new-order or buyer allowance',()=>{
 test('one canonical WA source normalizes 08 and rejects duplicate settings',()=>{
  const f=fixture();f.tables.settings[1][1]='081234567890';assert.equal(f.context.getInitialData().settings.no_whatsapp,'6281234567890');
  assert.equal(new URL(f.context.createOrder(f.payload()).waUrl).pathname,'/6281234567890');
- f.tables.settings.push(['no_whatsapp','628999999999']);assert.equal(f.context.getInitialData().success,false);assert.equal(f.context.createOrder(f.payload()).success,false);assert.equal(f.tables.orders.length,2);
+ f.tables.settings.push(['no_whatsapp','628999999999']);assert.equal(f.context.getInitialData().success,true);assert.equal(f.context.getInitialData().settings.no_whatsapp,'');assert.equal(f.context.createOrder(f.payload()).success,false);assert.equal(f.tables.orders.length,2);
 });
 test('random single order references preserve legacy status-only privacy and explain discounts/units',()=>{
  const f=fixture();f.tables.products[0].push('satuan');f.tables.products[1].push('box');const p=f.payload();p.kode_kupon='HEMAT';const r=f.context.createOrder(p);assert.match(r.orderId,/^TA-[A-F0-9]{20}$/);
@@ -75,4 +75,7 @@ test('checkout journal recovers a hard interruption between quota debit and row 
  props.setProperty('ABANGDA_CHECKOUT_V1',JSON.stringify({requestId:'a'.repeat(64),requestHash:'hash',orderId:'TA-'+ 'A'.repeat(20),code:'HEMAT',before:2,after:1}));f.tables.orders[0].push('request_id');f.tables.coupons[1][4]=1;
  f.context.recoverPendingOperations_();assert.equal(f.tables.coupons[1][4],2);assert.equal(props.getProperty('ABANGDA_CHECKOUT_V1'),null);assert.equal(f.context.createOrder(p).success,true);
 });
+
+test('invalid store contact cannot hide catalog or create orders',()=>{const f=fixture();f.tables.settings[1][1]='tidak valid';const r=f.context.getInitialData();assert.equal(r.success,true);assert.ok(r.featuredProducts.length);assert.equal(r.settings.contactUnavailable,true);assert.equal(r.settings.no_whatsapp,'');assert.equal(f.context.createOrder(f.payload()).success,false);assert.equal(f.tables.orders.length,1);});
+
 console.log(passed+' launch-readiness checks passed.');

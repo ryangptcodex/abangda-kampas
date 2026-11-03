@@ -125,3 +125,10 @@ Tes tidak melakukan transfer uang, mengirim WhatsApp, mengedit sheet asli, atau 
 Setelah pemasangan: periksa semua data melalui menu, nomor WA/foto asli, izin sheet/backup/editor, satu deployment `/exec` publik yang benar, order uji yang diterima di WA, status/payment/pembatalan, pemulihan jurnal, serta uji Chrome Android dan Safari iPhone. Jadwalkan backup dan retensi data pelanggan; backup migrasi tidak memuat order yang masuk belakangan. Tinjau file cadangan dan izin aksesnya. Jangan mengubah data/Script Properties yang masih dalam transaksi ketika rollback.
 
 Domain dan DNS belum diubah. Apps Script tidak mendukung custom-domain mapping langsung seperti hosting biasa. Google Sites + custom domain + embed `/exec` adalah jalur perubahan minimum jika fitur akun mendukung; uji ulang popup/storage pada iframe tersebut. Frontend hosting terpisah perlu API/perantara pengganti `google.script.run`. SEO/URL per produk, akun pelanggan dan pembayaran otomatis bukan syarat bagi katalog manual ini dan belum ditambahkan.
+
+### Pembaruan Sheet satu klik
+Setelah mengganti `setup.gs` dan `Kode.gs` dengan versi terbaru, simpan dan buka ulang spreadsheet. Pilih **🛒 Toko Abangda → 🚀 Perbarui Semua**. Sekali klik membuat cadangan penuh, memperbarui struktur tujuh sheet termasuk kolom grosir/dropdown/kunci sistem/proteksi, memulihkan transaksi tertunda, dan memeriksa seluruh data. Hasil dan tautan cadangan muncul dalam satu dialog. Proses berhenti jika migrasi gagal; data ambigu dilaporkan untuk diperbaiki, tidak ditebak atau direset.
+
+Untuk tombol gambar pada spreadsheet, gunakan **Sisipkan → Gambar**, lalu **Tetapkan skrip** dengan nama `perbaruiSemua` (tanpa kurung). Menu dan gambar menjalankan fungsi yang sama; tombol gambar digunakan lewat browser desktop. Kode Apps Script dan deployment webapp tetap diperbarui terpisah.
+
+Nomor `settings.no_whatsapp` yang kosong, tidak valid, atau ganda tidak lagi memblokir katalog. Kontak WhatsApp disembunyikan dan peringatan pemesanan ditampilkan; checkout tetap menolak tujuan tidak valid. Isi nomor toko sebagai teks, misalnya format `628…` atau `08…`, dan jalankan Perbarui Semua untuk pemeriksaan.

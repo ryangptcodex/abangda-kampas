@@ -6,6 +6,8 @@
 function onOpen(e) {
   SpreadsheetApp.getUi()
     .createMenu('🛒 Toko Abangda')
+    .addItem('🚀 Perbarui Semua', 'perbaruiSemua')
+    .addSeparator()
     .addItem('🔄 Perbarui Struktur Sheet', 'updateSheetStructure_')
     .addItem('💰 Siapkan Kolom Harga Grosir', 'prepareWholesaleColumns_')
     .addItem('🔎 Periksa Data Produk', 'checkProductData_')
@@ -601,12 +603,13 @@ function databaseSchemas_() {
 
 
 /** Menu spreadsheet privat: migrasi struktur tanpa reset atau data contoh. */
-function updateSheetStructure_() {
+function updateSheetStructure_(silent) {
   const ui = SpreadsheetApp.getUi();
   const lock = LockService.getScriptLock();
   let locked = false;
   let backupUrl = '';
   let message = '';
+  let success = false;
   try {
     if (!lock.tryLock(15000)) throw new Error('Ada proses pesanan lain. Silakan coba lagi.');
     locked = true;
@@ -692,6 +695,7 @@ function updateSheetStructure_() {
     }
     applyProductCategoryValidation_(ss);
     SpreadsheetApp.flush();
+    success = true;
     message = 'Struktur 7 sheet sudah diperbarui.\nKolom ditambahkan: ' + added + '\nKolom lama dihapus: ' + removed + '\n\nData lama, kolom tambahan, dan pengaturan toko dipertahankan. Tidak ada data contoh yang ditambahkan.';
   } catch (error) {
     message = 'Pembaruan belum selesai: ' + (error.message || String(error));
@@ -701,7 +705,30 @@ function updateSheetStructure_() {
   }
   // Dialog hanya ditampilkan setelah lock dilepas.
   if (backupUrl) message += '\n\nCadangan lengkap: ' + backupUrl;
-  ui.alert(message);
+  if (silent !== true) ui.alert(message);
+  return {success:success,message:message};
+}
+
+// Satu tindakan pengelola; tidak mereset data atau menebak pengaturan toko.
+// Nama publik ini juga dapat dipasang pada gambar/tombol di spreadsheet.
+function perbaruiSemua() {
+  const ui = SpreadsheetApp.getUi();
+  const result = updateSheetStructure_(true);
+  if (!result.success) { ui.alert(result.message); return; }
+  try {
+    const lock = LockService.getScriptLock();
+    let locked = false;
+    try {
+      if (!lock.tryLock(15000)) throw new Error('Ada transaksi lain. Klik Perbarui Semua kembali.');
+      locked = true;
+      recoverPendingOperations_();
+      SpreadsheetApp.flush();
+    } finally { if (locked) lock.releaseLock(); }
+    const issues = inspectAllData_();
+    ui.alert(result.message + '\n\nPemulihan transaksi tertunda selesai.\n' +
+      (issues.length ? 'Data yang perlu diperbaiki (' + issues.length + '):\n' + issues.slice(0,80).map(function(item) { return item.sheet + ' baris ' + item.row + ': ' + item.message; }).join('\n') : 'Pemeriksaan seluruh data selesai tanpa temuan.') +
+      '\n\nKode Apps Script dan deployment webapp tidak diperbarui oleh tombol ini.');
+  } catch (error) { ui.alert(result.message + '\n\nLangkah lanjutan belum selesai: ' + error.message); }
 }
 
 // Kompatibilitas menu lama: selalu gunakan pembaruan tanpa reset.

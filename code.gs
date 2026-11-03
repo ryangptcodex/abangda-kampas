@@ -25,7 +25,7 @@ function normalizePhone_(value) {
   return phone;
 }
 
-function publicSettings_(ss) {
+function publicSettings_(ss, tolerateInvalidContact) {
   const sheet = ss.getSheetByName('settings'); if (!sheet) throw new Error('Sheet settings tidak ditemukan.');
   const rows = sheet.getDataRange().getDisplayValues(), headers = rows[0] || [];
   const keyIndex = headers.indexOf('kunci'), valueIndex = headers.indexOf('nilai');
@@ -34,10 +34,19 @@ function publicSettings_(ss) {
   const settings = {}, seen = new Set();
   rows.slice(1).forEach(function(row) {
     const key = String(row[keyIndex] || '').trim(); if (!key || !allowed.includes(key)) return;
-    if (seen.has(key)) throw new Error('Kunci settings ganda: '+key+'. Rapikan melalui pemeriksaan data.');
+    if (seen.has(key)) {
+      if (tolerateInvalidContact && key === 'no_whatsapp') { settings.no_whatsapp = ''; settings.contactUnavailable = true; return; }
+      throw new Error('Kunci settings ganda: '+key+'. Rapikan melalui pemeriksaan data.');
+    }
     seen.add(key); if (allowed.includes(key)) settings[key] = String(row[valueIndex] || '').trim();
   });
-  if (settings.no_whatsapp) settings.no_whatsapp = normalizePhone_(settings.no_whatsapp);
+  try {
+    if (settings.contactUnavailable || !settings.no_whatsapp) throw new Error('Nomor WhatsApp toko wajib diisi.');
+    settings.no_whatsapp = normalizePhone_(settings.no_whatsapp);
+  } catch (error) {
+    if (!tolerateInvalidContact) throw error;
+    settings.no_whatsapp = ''; settings.contactUnavailable = true;
+  }
   return settings;
 }
 
@@ -235,7 +244,7 @@ function getInitialData() {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     ensureWholesaleColumns_(ss);
 
-    const settings = publicSettings_(ss);
+    const settings = publicSettings_(ss, true);
 
     // Sheet categories berisi nama dan url_ikon.
     // Nama kategori dipakai sebagai nilai id_kategori pada produk.
