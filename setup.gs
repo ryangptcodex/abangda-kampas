@@ -7,7 +7,6 @@ function onOpen(e) {
   SpreadsheetApp.getUi()
     .createMenu('🛒 Toko Abangda')
     .addItem('🔄 Perbarui Struktur Sheet', 'updateSheetStructure_')
-    .addItem('🛠️ Siapkan Database', 'setupDatabase_')
     .addItem('💰 Siapkan Kolom Harga Grosir', 'prepareWholesaleColumns_')
     .addSeparator()
     .addItem('📦 Buka Produk', 'openProductsSheet')
@@ -62,7 +61,7 @@ function openSheetByName_(sheetName) {
   ss.setActiveSheet(sheet);
 }
 
-function setupDatabase_() {
+function initializeDatabase_() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
@@ -468,7 +467,6 @@ function seedProductsIfEmpty(sheet) {
   if (sheet && sheet.getLastRow() <= 1) {
     const products = [
       [
-        'PRD-001',
         'Minyak Goreng Premium 2L',
         'Sembako & Bumbu',
         'Bimoli',
@@ -478,7 +476,6 @@ function seedProductsIfEmpty(sheet) {
         'YA'
       ],
       [
-        'PRD-002',
         'Beras Wangi Super 5kg',
         'Sembako & Bumbu',
         'Toko Abangda',
@@ -488,7 +485,6 @@ function seedProductsIfEmpty(sheet) {
         'YA'
       ],
       [
-        'PRD-003',
         'Kopi Hitam Original 200g',
         'Makanan & Minuman',
         'Nestle',
@@ -498,7 +494,6 @@ function seedProductsIfEmpty(sheet) {
         'YA'
       ],
       [
-        'PRD-004',
         'Sabun Mandi Aromatherapy',
         'Mandi & Perawatan',
         'Unilever',
@@ -508,7 +503,6 @@ function seedProductsIfEmpty(sheet) {
         'TIDAK'
       ],
       [
-        'PRD-005',
         'Deterjen Cair 800ml',
         'Kebutuhan Rumah',
         'Wings',
@@ -520,7 +514,7 @@ function seedProductsIfEmpty(sheet) {
     ];
 
     const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
-    const demoFields = ['id_produk','nama','id_kategori','brand','harga','deskripsi','url_foto','is_unggulan'];
+    const demoFields = ['nama','id_kategori','brand','harga','deskripsi','url_foto','is_unggulan'];
     const rows = products.map(function(product) {
       return headers.map(function(header) {
         const index = demoFields.indexOf(header);
@@ -613,7 +607,7 @@ function updateSheetStructure_() {
     Object.keys(schemas).forEach(function(name) {
       const sheet = ss.getSheetByName(name);
       if (!sheet || sheet.getLastColumn() === 0) return;
-      const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+      const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0].map(normalizeDatabaseHeader_);
       const seen = Object.create(null);
       headers.forEach(function(header) {
         if (!header) return;
@@ -624,8 +618,9 @@ function updateSheetStructure_() {
     const products = ss.getSheetByName('products');
     if (products && products.getLastRow() > 1) {
       const rows = products.getDataRange().getDisplayValues();
-      const nameIndex = rows[0].indexOf('nama');
-      const brandIndex = rows[0].indexOf('brand');
+      const normalizedHeaders = rows[0].map(normalizeDatabaseHeader_);
+      const nameIndex = normalizedHeaders.indexOf('nama');
+      const brandIndex = normalizedHeaders.indexOf('brand');
       const seenProducts = new Set();
       rows.slice(1).forEach(function(row) {
         const name = nameIndex < 0 ? '' : String(row[nameIndex] || '').trim();
@@ -645,7 +640,11 @@ function updateSheetStructure_() {
     Object.keys(schemas).forEach(function(name) {
       const sheet = ss.getSheetByName(name) || ss.insertSheet(name);
       const count = sheet.getLastColumn();
-      const headers = count ? sheet.getRange(1, 1, 1, count).getDisplayValues()[0] : [];
+      const originalHeaders = count ? sheet.getRange(1, 1, 1, count).getDisplayValues()[0] : [];
+      const headers = originalHeaders.map(normalizeDatabaseHeader_);
+      headers.forEach(function(header, i) {
+        if (header !== originalHeaders[i]) sheet.getRange(1, i + 1).setValue(header);
+      });
       // Rename in place so existing banner labels and URLs stay aligned.
       if (name === 'banners' && !headers.includes('keterangan') && headers.includes('id_banner')) {
         const index = headers.indexOf('id_banner');
@@ -668,6 +667,8 @@ function updateSheetStructure_() {
           removed++;
         }
       }
+      const actualHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0].map(normalizeDatabaseHeader_);
+      if (actualHeaders.some(function(header) { return obsolete.includes(header); })) throw new Error('Kolom lama pada ' + name + ' belum terhapus.');
       formatHeaderRow(sheet, headers.length);
     });
     const orders = ss.getSheetByName('orders');
@@ -690,4 +691,22 @@ function updateSheetStructure_() {
   // Dialog hanya ditampilkan setelah lock dilepas.
   if (backupUrl) message += '\n\nCadangan lengkap: ' + backupUrl;
   ui.alert(message);
+}
+
+// Kompatibilitas menu lama: selalu gunakan pembaruan tanpa reset.
+function setupDatabase_() {
+  updateSheetStructure_();
+}
+
+function normalizeDatabaseHeader_(header) {
+  const original = String(header == null ? '' : header);
+  const normalized = original.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  const aliases = {id_product:'id_produk', id_products:'id_produk', idproduct:'id_produk', idproduk:'id_produk',
+    id_brands:'id_brand', idbrand:'id_brand', idbrands:'id_brand', id_banners:'id_banner', idbanner:'id_banner', idbanners:'id_banner'};
+  const candidate = aliases[normalized] || normalized;
+  const known = ['id_produk','id_brand','id_banner','tracking_token','tracking_token_hash'];
+  Object.keys(databaseSchemas_()).forEach(function(name) {
+    databaseSchemas_()[name].forEach(function(field) { if (!known.includes(field)) known.push(field); });
+  });
+  return known.includes(candidate) ? candidate : original;
 }

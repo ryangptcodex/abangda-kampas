@@ -33,8 +33,8 @@ test('percentage above 100 is rejected',()=>{const f=fixture();f.tables.coupons[
 for(const qty of [0,-1,1.5,'abc',null,true,Infinity]){
  test('invalid quantity rejected: '+String(qty),()=>{const f=fixture(),p=f.payload();p.items[0].qty=qty;rejected(f,p,/Jumlah|jumlah/);});
 }
-test('duplicate product quantities are aggregated with no inventory cap',()=>{const f=fixture(),p=f.payload();p.items=[{id:'P1',qty:6},{id:'P1',qty:5}];const r=f.context.createOrder(p);assert.equal(r.success,true);assert.equal(r.summary.items[0].qty,11);});
-test('valid duplicate product lines are aggregated once',()=>{const f=fixture(),p=f.payload();p.items=[{id:'P1',qty:2},{id:'P1',qty:3}];const r=f.context.createOrder(p);assert.equal(r.success,true);assert.equal(r.summary.items.length,1);assert.equal(r.summary.items[0].qty,5);});
+test('duplicate product quantities are aggregated with no inventory cap',()=>{const f=fixture(),p=f.payload();p.items=[{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:6},{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:5}];const r=f.context.createOrder(p);assert.equal(r.success,true);assert.equal(r.summary.items[0].qty,11);});
+test('valid duplicate product lines are aggregated once',()=>{const f=fixture(),p=f.payload();p.items=[{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:2},{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:3}];const r=f.context.createOrder(p);assert.equal(r.success,true);assert.equal(r.summary.items.length,1);assert.equal(r.summary.items[0].qty,5);});
 test('legacy stock values never block manual-confirmation orders',()=>{for(const stock of [0,1,-1,'not used']){const f=fixture();f.tables.products[1][6]=stock;const r=f.context.createOrder(f.payload());assert.equal(r.success,true);assert.equal(r.summary.items[0].qty,2);}});
 test('missing product rejected',()=>{const f=fixture(),p=f.payload();p.items[0].id='MISSING';rejected(f,p,/tidak ditemukan/);});
 test('invalid stored price rejected rather than silently charging zero',()=>{const f=fixture();f.tables.products[1][4]='Rp 34.500';rejected(f,f.payload(),/Harga/);});
@@ -48,7 +48,7 @@ test('serialized calls use distinct order IDs and coupon cannot be used after qu
 test('coupon quota restored when append fails',()=>{const f=fixture({failAppend:true}),p=f.payload();p.kode_kupon='HEMAT';rejected(f,p,/Gagal menulis/);});
 test('order columns map by header even when reordered',()=>{const f=fixture();f.tables.orders[0].reverse();const r=f.context.createOrder(f.payload());assert.equal(r.success,true);assert.equal(f.tables.orders[1][f.tables.orders[0].indexOf('id_pesanan')],r.orderId);});
 test('customer text is not interpreted as a sheet formula',()=>{const f=fixture(),p=f.payload();p.nama_pemesan='=1+1';const r=f.context.createOrder(p);assert.equal(r.success,true);assert.equal(f.tables.orders[1][2],"'=1+1");});
-test('formatted currency in Sheets does not alter displayed product price',()=>{const f=fixture();const p=f.context.getProducts('','ALL','ALL',1,6);assert.equal(p.success,true);assert.equal(p.data[0].harga,34500);const detail=f.context.getProductById('P1');assert.equal(detail.product.harga,34500);const initial=f.context.getInitialData();assert.equal(initial.success,true);assert.equal(initial.featuredProducts[0].harga,34500);});
+test('formatted currency in Sheets does not alter displayed product price',()=>{const f=fixture();const p=f.context.getProducts('','ALL','ALL',1,6);assert.equal(p.success,true);assert.equal(p.data[0].harga,34500);const detail=f.context.getProductById('P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49');assert.equal(detail.product.harga,34500);const initial=f.context.getInitialData();assert.equal(initial.success,true);assert.equal(initial.featuredProducts[0].harga,34500);});
 
 
 test('new orders track with ID alone without creating a token or hash column',()=>{
@@ -90,6 +90,15 @@ test('products without ID columns support stable catalog, detail, restore and wh
  const payload=f.payload();payload.items=[{id,qty:3}];const order=f.context.createOrder(payload);assert.equal(order.success,true);assert.equal(order.summary.total_harga,90000);
  f.tables.products.push([...f.tables.products[2]]);assert.equal(f.context.createOrder(payload).success,false);
 });
+test('removing or changing a legacy ID does not change catalog keys, saved carts or checkout',()=>{
+ const f=fixture();const id=f.context.getInitialData().featuredProducts[0].id_produk;
+ const payload=f.payload();payload.items=[{id,qty:2}];
+ f.tables.products[1][0]='CHANGED-LEGACY';assert.equal(f.context.getProducts('','ALL','ALL',1,6).data[0].id_produk,id);
+ f.tables.products.forEach(row=>row.splice(0,1));
+ assert.equal(f.context.getInitialData().featuredProducts[0].id_produk,id);assert.equal(f.context.getProductById(id).success,true);
+ const cart=f.context.getCartSnapshot([{id,qty:2}]);assert.equal(cart.success,true);assert.equal(cart.items[0].id,id);assert.equal(cart.adjustments.length,0);
+ assert.equal(f.context.createOrder(payload).success,true);
+});
 test('brands and banner descriptions work without legacy IDs',()=>{
  const f=fixture();f.tables.brands=[['nama_brand','url_logo'],['Abangda','logo']];f.tables.banners=[['keterangan','url_gambar','link'],['Promo sembako','gambar','tujuan']];
  for(const name of ['brands','banners'])f.sheets[name]={getLastRow:()=>2,getDataRange:()=>({getDisplayValues:()=>f.tables[name]})};
@@ -98,45 +107,45 @@ test('brands and banner descriptions work without legacy IDs',()=>{
 test('cart snapshot returns current catalog fields and ignores saved display data',()=>{
  const f=fixture();f.tables.products[1][4]=40000;
  const before=JSON.stringify(f.tables);
- const r=f.context.getCartSnapshot([{id:'P1',qty:2,harga:1,nama:'Forged',maxStock:9999}]);
+ const r=f.context.getCartSnapshot([{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:2,harga:1,nama:'Forged',maxStock:9999}]);
  assert.equal(r.success,true);assert.equal(r.items[0].harga,40000);assert.equal(r.items[0].nama,'Beras');assert.equal(Object.hasOwn(r.items[0],'maxStock'),false);
  assert.equal(JSON.stringify(f.tables),before);assert.equal(f.attempts(),0);
 });
 test('cart snapshot preserves quantities irrespective of legacy stock',()=>{
  const f=fixture();f.tables.products[1][6]=3;
- const r=f.context.getCartSnapshot([{id:'P1',qty:2},{id:'P1',qty:4}]);
+ const r=f.context.getCartSnapshot([{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:2},{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:4}]);
  assert.equal(r.success,true);assert.equal(r.items.length,1);assert.equal(r.items[0].qty,6);assert.equal(r.adjustments.length,0);
 });
 test('cart snapshot drops only removed products and keeps zero-inventory products',()=>{
  const f=fixture();f.tables.products[1][6]=0;
- const r=f.context.getCartSnapshot([{id:'P1',qty:2},{id:'REMOVED',qty:1}]);
+ const r=f.context.getCartSnapshot([{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:2},{id:'REMOVED',qty:1}]);
  assert.equal(r.success,true);assert.equal(r.items.length,1);assert.equal(r.items[0].qty,2);assert.equal(r.adjustments.length,1);assert.equal(r.adjustments[0].reason,'removed');
 });
 test('cart snapshot validates saved structure and quantity types',()=>{
  const f=fixture();
- for(const input of [null,{},Array.from({length:101},()=>({id:'P1',qty:1})),[{id:'',qty:1}],[{id:'a'.repeat(129),qty:1}],[{id:'P1',qty:0}],[{id:'P1',qty:-1}],[{id:'P1',qty:1.5}],[{id:'P1',qty:'2'}],[{id:'P1',qty:true}],[{id:'P1',qty:Number.MAX_SAFE_INTEGER},{id:'P1',qty:1}]]) {
+ for(const input of [null,{},Array.from({length:101},()=>({id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:1})),[{id:'',qty:1}],[{id:'a'.repeat(129),qty:1}],[{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:0}],[{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:-1}],[{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:1.5}],[{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:'2'}],[{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:true}],[{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:Number.MAX_SAFE_INTEGER},{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:1}]]) {
   assert.equal(f.context.getCartSnapshot(input).success,false);
  }
  assert.equal(f.context.getCartSnapshot([]).success,true);
 });
 test('cart snapshot fails rather than replacing a cart with misleading catalog data',()=>{
- const f=fixture();f.tables.products[1][4]='Rp 34.500';assert.equal(f.context.getCartSnapshot([{id:'P1',qty:1}]).success,false);
- f.tables.products[1][4]=34500;f.tables.products.push([...f.tables.products[1]]);assert.equal(f.context.getCartSnapshot([{id:'P1',qty:1}]).success,false);
+ const f=fixture();f.tables.products[1][4]='Rp 34.500';assert.equal(f.context.getCartSnapshot([{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:1}]).success,false);
+ f.tables.products[1][4]=34500;f.tables.products.push([...f.tables.products[1]]);assert.equal(f.context.getCartSnapshot([{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:1}]).success,false);
 });
 
 
 test('wholesale applies to all units exactly at the minimum and reverts below it',()=>{
  const f=fixture();f.tables.products[1][9]=30000;f.tables.products[1][10]=3;
  for(const [qty,price] of [[2,34500],[3,30000],[4,30000],[1,34500]]) {
-  const p=f.payload();p.items=[{id:'P1',qty:qty,harga:1,harga_grosir:1,min_beli_grosir:1}];
+  const p=f.payload();p.items=[{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:qty,harga:1,harga_grosir:1,min_beli_grosir:1}];
   const r=f.context.createOrder(p);assert.equal(r.success,true);assert.equal(r.summary.items[0].harga,price);assert.equal(r.summary.total_harga,price*qty);
   assert.match(new URL(r.waUrl).searchParams.get('text'),new RegExp((price*qty).toLocaleString('id-ID').replaceAll('.', '\\.')));
  }
 });
 test('wholesale threshold uses aggregated quantities for the same SKU only',()=>{
  const f=fixture();f.tables.products[1][9]=30000;f.tables.products[1][10]=3;
- const other=[...f.tables.products[1]];other[0]='P2';f.tables.products.push(other);
- const p=f.payload();p.items=[{id:'P1',qty:1},{id:'P1',qty:2},{id:'P2',qty:1}];
+ const other=[...f.tables.products[1]];other[0]='P2';other[1]='Beras Lain';f.tables.products.push(other);
+ const p=f.payload();p.items=[{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:1},{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:2},{id:f.context.productKeyFromRow_(other,f.tables.products[0]),qty:1}];
  const r=f.context.createOrder(p);assert.equal(r.success,true);assert.equal(r.summary.items[0].harga,30000);assert.equal(r.summary.items[1].harga,34500);assert.equal(r.summary.total_harga,124500);
 });
 test('coupons use wholesale subtotal as their base',()=>{
@@ -147,9 +156,9 @@ test('coupons use wholesale subtotal as their base',()=>{
 });
 test('wholesale metadata is consistent across initial catalog, search, detail and saved cart',()=>{
  const f=fixture();f.tables.products[1][9]=30000;f.tables.products[1][10]=3;
- const products=[f.context.getInitialData().featuredProducts[0],f.context.getProducts('','ALL','ALL',1,6).data[0],f.context.getProductById('P1').product];
+ const products=[f.context.getInitialData().featuredProducts[0],f.context.getProducts('','ALL','ALL',1,6).data[0],f.context.getProductById('P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49').product];
  for(const p of products){assert.equal(p.harga,34500);assert.equal(p.harga_grosir,30000);assert.equal(p.min_beli_grosir,3);assert.equal(Object.hasOwn(p,'stok'),false);}
- const cart=f.context.getCartSnapshot([{id:'P1',qty:3}]);assert.equal(cart.items[0].harga,30000);assert.equal(cart.items[0].harga_normal,34500);assert.equal(cart.items[0].qty,3);
+ const cart=f.context.getCartSnapshot([{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:3}]);assert.equal(cart.items[0].harga,30000);assert.equal(cart.items[0].harga_normal,34500);assert.equal(cart.items[0].qty,3);
 });
 test('absent wholesale and stock columns remain compatible with existing products',()=>{
  const f=fixture();f.tables.products[0]=f.tables.products[0].slice(0,9);f.tables.products[1]=f.tables.products[1].slice(0,9);
@@ -172,7 +181,7 @@ test('product seeding maps by actual headers without restoring an inventory depe
  f.tables.products.splice(0,f.tables.products.length,headers);
  f.context.seedProductsIfEmpty(f.sheets.products);
  assert.equal(f.tables.products.length,6);
- const row=f.tables.products[1];assert.equal(row[headers.indexOf('id_produk')],'PRD-001');assert.equal(row[headers.indexOf('harga')],34500);
+ const row=f.tables.products[1];assert.equal(row[headers.indexOf('id_produk')],'');assert.equal(row[headers.indexOf('harga')],34500);
  assert.equal(row[headers.indexOf('stok')],'');assert.equal(row[headers.indexOf('harga_grosir')],'');assert.match(row[headers.indexOf('url_foto')],/^https:/);
  const before=JSON.stringify(f.tables.products);f.context.seedProductsIfEmpty(f.sheets.products);assert.equal(JSON.stringify(f.tables.products),before);
 });

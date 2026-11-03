@@ -51,8 +51,6 @@ function prepareWholesaleColumns_() {
 function productKeyFromRow_(row, headers) {
   function value(name) { const i = headers.indexOf(name); return i < 0 ? '' : String(row[i] == null ? '' : row[i]).trim(); }
   if (!value('nama')) return '';
-  // Accept older sheets until the structure updater removes the legacy column.
-  if (value('id_produk')) return value('id_produk');
   const key = JSON.stringify([value('nama'), value('brand')]);
   return 'P-' + Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, key, Utilities.Charset.UTF_8)
     .map(function(byte) { return (byte & 255).toString(16).padStart(2, '0'); }).join('');
@@ -363,7 +361,7 @@ function getCartSnapshot(savedItems) {
     rows.slice(1).forEach(function(row) {
       const id = productKeyFromRow_(row, headers);
       if (!wanted.has(id)) return;
-      if (products.has(id)) throw new Error('ID produk duplikat di Sheets: ' + id);
+      if (products.has(id)) throw new Error('Nama produk dan brand duplikat di Sheets. Bedakan nama atau varian produk.');
       products.set(id, row);
     });
     const items = [], adjustments = [];
@@ -493,7 +491,7 @@ function createOrder(orderPayload) {
     rows.slice(1).forEach(function(row) {
       const id = productKeyFromRow_(row, headers);
       if (!id) return;
-      if (byId.has(id)) throw new Error('ID produk duplikat di Sheets: ' + id);
+      if (byId.has(id)) throw new Error('Nama produk dan brand duplikat di Sheets. Bedakan nama atau varian produk.');
       byId.set(id, row);
     });
     let subtotal = 0;

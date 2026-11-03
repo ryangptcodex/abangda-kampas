@@ -37,6 +37,11 @@ const {fixture}=require('./helpers/apps-script.cjs');
   // The + control updates both price and wholesale badge exactly at the threshold.
   await card.locator('[data-role="add"]').click();
   assert.equal(await card.locator('[data-role="quantity"]').innerText(),'1');
+  if(process.env.MIGRATE_DURING_CART){
+    const idIndex=f.tables.products[0].indexOf('id_produk');
+    if(idIndex>=0)f.tables.products.forEach(row=>row.splice(idIndex,1));
+    assert.equal(f.context.getProductById(productKey).success,true);
+  }
   assert.match(await page.locator('#cartItemsContainer').innerText(),/Tambahkan 2 lagi untuk dapat harga grosir/);
   assert.match(await page.locator('#checkoutItemsReview').innerText(),/Tambahkan 2 lagi untuk dapat harga grosir/);
   assert.equal(await card.locator('[data-role="price"]').innerText(),'Rp 34.500');

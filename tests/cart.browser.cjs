@@ -42,10 +42,10 @@ const KEY = 'tokoAbangda.cart.v1';
     async function seed(items,extra={}){await page.evaluate(({key,items,extra})=>localStorage.setItem(key,JSON.stringify({version:1,savedAt:Date.now(),items,...extra})),{key:KEY,items,extra});}
     const stored = () => page.evaluate(key=>localStorage.getItem(key),KEY);
     await page.goto('http://toko-abangda.test/');await ready();
-    await page.evaluate(()=>{quickAddToCart('P1','Beras',34500,10,'','Abangda');quickAddToCart('P1','Beras',34500,10,'','Abangda');});
+    await page.evaluate(()=>{quickAddToCart('P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49','Beras',34500,10,'','Abangda');quickAddToCart('P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49','Beras',34500,10,'','Abangda');});
     const initial=JSON.parse(await stored());
     assert.deepEqual(Object.keys(initial).sort(),['items','savedAt','version']);
-    assert.deepEqual(initial.items,[{id:'P1',qty:2}]);
+    assert.deepEqual(initial.items,[{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:2}]);
     f.tables.products[1][4]=40000;f.tables.products[1][6]=1;
     await page.reload();await ready();
     assert.equal(await page.evaluate(()=>cartState[0].harga),40000);
@@ -57,35 +57,35 @@ const KEY = 'tokoAbangda.cart.v1';
     await page.evaluate(()=>changeCartQty(0,-1));assert.equal(JSON.parse(await stored()).items[0].qty,1);
     await page.evaluate(()=>changeCartQty(0,-1));assert.equal(await stored(),null);
     f.tables.products[1][6]=10;
-    await page.evaluate(()=>quickAddToCart('P1','Beras',40000,10,'','Abangda'));
+    await page.evaluate(()=>quickAddToCart('P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49','Beras',40000,10,'','Abangda'));
     const second=await context.newPage();await second.goto('http://toko-abangda.test/');await ready(second);
     assert.equal(await second.locator('#cartBadge').innerText(),'1');await second.close();
     await page.evaluate(()=>removeCartItem(0));assert.equal(await stored(),null);
     // Extra forged cached fields never populate the cart and are removed on rewrite.
-    await seed([{id:'P1',qty:2,harga:1,nama:'FORGED',alamat:'PRIVATE',trackingToken:'SECRET'}]);
+    await seed([{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:2,harga:1,nama:'FORGED',alamat:'PRIVATE',trackingToken:'SECRET'}]);
     await page.reload();await ready();
     assert.equal(await page.evaluate(()=>cartState[0].nama),'Beras');
     assert.equal(await page.evaluate(()=>cartState[0].harga),40000);
-    assert.deepEqual(JSON.parse(await stored()).items,[{id:'P1',qty:2}]);
+    assert.deepEqual(JSON.parse(await stored()).items,[{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:2}]);
     assert.equal((await stored()).includes('SECRET'),false);
     // Only deleted products are removed; legacy inventory values never cap quantities.
     f.tables.products[1][6]=0;
-    await seed([{id:'P1',qty:1},{id:'DELETED',qty:1}]);await page.reload();await ready();
-    assert.deepEqual(JSON.parse(await stored()).items,[{id:'P1',qty:1}]);assert.equal(await page.evaluate(()=>cartState.length),1);
+    await seed([{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:1},{id:'DELETED',qty:1}]);await page.reload();await ready();
+    assert.deepEqual(JSON.parse(await stored()).items,[{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:1}]);assert.equal(await page.evaluate(()=>cartState.length),1);
     f.tables.products[1][6]=10;
     // Malformed and expired carts do not crash startup or trigger restoration RPCs.
     const snapshotsBefore=counts.getCartSnapshot;
-    for(const value of ['{broken',JSON.stringify({version:99,savedAt:Date.now(),items:[]}),JSON.stringify({version:1,savedAt:Date.now(),items:[{id:'P1',qty:-1}]}),JSON.stringify({version:1,savedAt:Date.now()-31*86400000,items:[{id:'P1',qty:1}]})]){
+    for(const value of ['{broken',JSON.stringify({version:99,savedAt:Date.now(),items:[]}),JSON.stringify({version:1,savedAt:Date.now(),items:[{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:-1}]}),JSON.stringify({version:1,savedAt:Date.now()-31*86400000,items:[{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:1}]})]){
       await page.evaluate(({key,value})=>localStorage.setItem(key,value),{key:KEY,value});
       await page.reload();await ready();assert.equal(await stored(),null);
     }
     assert.equal(counts.getCartSnapshot,snapshotsBefore);
     // A transient server failure preserves storage and requires retry/discard.
-    await seed([{id:'P1',qty:2}]);const savedBeforeFailure=await stored();flags.failSnapshot=true;
+    await seed([{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:2}]);const savedBeforeFailure=await stored();flags.failSnapshot=true;
     await page.reload();await ready();
     assert.equal(await stored(),savedBeforeFailure);
     assert.equal(await page.evaluate(()=>cartRestoreRequired),true);
-    await page.evaluate(()=>quickAddToCart('P1','Beras',40000,10,'','Abangda'));
+    await page.evaluate(()=>quickAddToCart('P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49','Beras',40000,10,'','Abangda'));
     assert.equal(await page.evaluate(()=>cartState.length),0);
     assert.equal(await stored(),savedBeforeFailure);
     flags.failSnapshot=false;
@@ -102,7 +102,7 @@ const KEY = 'tokoAbangda.cart.v1';
     releaseSnapshot();await page.waitForFunction(n=>window.finishedRPCs>n,completed);
     assert.equal(await stored(),null);assert.equal(await page.evaluate(()=>cartState.length),0);
     // Checkout failure preserves saved items; success clears them. Pending checkout blocks edits.
-    await page.evaluate(()=>{quickAddToCart('P1','Beras',40000,10,'','Abangda');toggleCartDrawer(false);switchTab('checkout');});
+    await page.evaluate(()=>{quickAddToCart('P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49','Beras',40000,10,'','Abangda');toggleCartDrawer(false);switchTab('checkout');});
     await page.locator('#coNama').fill('Nama tidak disimpan');
     await page.locator('#coWa').fill('081234567890');await page.locator('#coAlamat').fill('Alamat tidak disimpan');
     const beforeOrder=await stored();assert.equal(beforeOrder.includes('Nama'),false);
@@ -112,7 +112,7 @@ const KEY = 'tokoAbangda.cart.v1';
     flags.failOrder=false;flags.delayOrder=true;releaseOrder=null;
     await page.locator('#btnSubmitCheckout').click();await page.waitForFunction(()=>cartCheckoutPending);
     while(!releaseOrder)await new Promise(r=>setTimeout(r,10));
-    await page.evaluate(()=>quickAddToCart('P1','Beras',40000,10,'','Abangda'));
+    await page.evaluate(()=>quickAddToCart('P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49','Beras',40000,10,'','Abangda'));
     assert.equal(await stored(),beforeOrder);assert.equal(await page.evaluate(()=>cartState[0].qty),1);
     releaseOrder();await page.locator('#pageKonfirmasi').waitFor({state:'visible'});
     assert.equal(await stored(),null);
@@ -121,14 +121,14 @@ const KEY = 'tokoAbangda.cart.v1';
     const blocked=await browser.newContext();await configure(blocked);
     await blocked.addInitScript(()=>Object.defineProperty(window,'localStorage',{get(){throw new DOMException('Denied','SecurityError');}}));
     const blockedPage=await blocked.newPage();await blockedPage.goto('http://toko-abangda.test/');await ready(blockedPage);
-    await blockedPage.evaluate(()=>{quickAddToCart('P1','Beras',40000,10,'','Abangda');toggleCartDrawer(true);});
+    await blockedPage.evaluate(()=>{quickAddToCart('P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49','Beras',40000,10,'','Abangda');toggleCartDrawer(true);});
     assert.equal(await blockedPage.locator('#cartBadge').innerText(),'1');
     assert.match(await blockedPage.locator('#cartStorageNotice').innerText(),/tidak dapat disimpan/);
     // Write quota errors also preserve the usable in-memory cart.
     const full=await browser.newContext();await configure(full);
     await full.addInitScript(()=>{Storage.prototype.setItem=function(){throw new DOMException('Quota','QuotaExceededError');};});
     const fullPage=await full.newPage();await fullPage.goto('http://toko-abangda.test/');await ready(fullPage);
-    await fullPage.evaluate(()=>quickAddToCart('P1','Beras',40000,10,'','Abangda'));
+    await fullPage.evaluate(()=>quickAddToCart('P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49','Beras',40000,10,'','Abangda'));
     assert.equal(await fullPage.locator('#cartBadge').innerText(),'1');
     assert.equal(await fullPage.evaluate(()=>cartStorageAvailable),false);
     assert.deepEqual(errors,[]);

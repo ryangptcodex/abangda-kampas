@@ -34,7 +34,7 @@ const { fixture } = require('./helpers/apps-script.cjs');
       .replace('</head>', '<style>'+fs.readFileSync(path.join(__dirname,'fixtures','tailwind.css'),'utf8')+'</style></head>');
     await page.setContent(html,{waitUntil:'domcontentloaded'});
     await page.waitForFunction(() => document.getElementById('homeProductsGrid').textContent.includes('Beras'));
-    await page.evaluate(() => {quickAddToCart('P1','Beras',34500,10,'','Abangda');switchTab('checkout');});
+    await page.evaluate(() => {quickAddToCart('P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49','Beras',34500,10,'','Abangda');switchTab('checkout');});
     await page.locator('#coNama').fill('Nama pribadi pemesan');
     await page.locator('#coWa').fill('081234567890');
     await page.locator('#coAlamat').fill('Alamat pribadi pemesan');

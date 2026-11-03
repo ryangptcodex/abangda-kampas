@@ -2,9 +2,19 @@
 
 Aplikasi Google Apps Script yang terhubung ke Google Sheets. Nama toko tetap Toko Abangda.
 
+## Perbaikan pembaruan kolom ID
+
+Ganti seluruh isi **code.gs / Kode.gs** dan **setup.gs**, simpan, lalu perbarui deployment webapp. Muat ulang spreadsheet dan jalankan **Toko Abangda → Perbarui Struktur Sheet**. Ini tetap membuat cadangan terlebih dahulu. Memasang kode saja tidak menghapus kolom spreadsheet; menu pembaruan harus dijalankan.
+
+Pembaruan mengenali variasi header seperti `ID Product`, `id_products`, `ID-PRODUK`, atau header dengan spasi/huruf besar. Header yang dikenal dirapikan tanpa mengubah isi baris; ID produk/brand dan token usang kemudian dihapus dan hasilnya diperiksa lagi. Kolom tambahan yang tidak dikenal tetap dipertahankan. Header ganda yang menjadi ambigu sesudah normalisasi menghentikan proses sebelum perubahan, agar tidak menghapus data yang salah.
+
+Pengenal internal produk kini selalu berasal dari nama dan brand, bahkan ketika kolom ID lama belum dihapus. Mengubah/menghapus ID lama tidak lagi mengubah pengenal katalog, keranjang, atau checkout. Menu lama **Siapkan Database** diarahkan ke pembaruan yang sama; menu reset/data contoh tidak lagi ditampilkan. Data contoh produk juga tidak lagi mengisi ID.
+
+Uji regresi: `MIGRATE_DURING_CART=1 node tests/wholesale.browser.cjs` menghapus kolom ID saat keranjang berisi produk, lalu melanjutkan tambah/kurang, detail, refresh, grosir, checkout, dan pelacakan. Tes backend memeriksa pengenal sebelum/sesudah penghapusan, dan tes migrasi memeriksa variasi header serta jalur menu lama. Pengujian ini menggunakan Sheets tiruan; sheet asli belum dapat diakses dari sesi ini.
+
 ## Produk dan brand tanpa kolom ID; keterangan banner
 
-Ganti seluruh isi **code.gs** (backend `Kode.gs`), **js.html**, dan **setup.gs** dari repo. Simpan dan uji `/dev`, lalu perbarui deployment `/exec` yang dipakai pelanggan **sebelum** menjalankan migrasi sheet. Backend baru mendukung sheet lama maupun baru. Muat ulang spreadsheet, lalu pilih **Toko Abangda → Perbarui Struktur Sheet**.
+Ganti seluruh isi **code.gs** (backend `Kode.gs`), **js.html**, dan **setup.gs** dari repo. Simpan dan uji `/dev`, lalu perbarui deployment `/exec` yang dipakai pelanggan **sebelum** menjalankan migrasi sheet. Backend baru mendukung sheet lama maupun baru dan selalu mengabaikan nilai ID lama untuk menghitung pengenal produk. Muat ulang spreadsheet, lalu pilih **Toko Abangda → Perbarui Struktur Sheet**.
 
 Menu membuat cadangan utuh, menghapus `products.id_produk` dan `brands.id_brand`, serta mengganti header `banners.id_banner` menjadi `keterangan` tanpa menghapus nilai pada baris banner. Isi labelnya sendiri, misalnya “Promo sembako” atau “Banner Ramadan”. Jika kedua header banner sudah ada, kolom `keterangan` dipertahankan dan `id_banner` dihapus; nilai lamanya tersedia di cadangan. Menu tetap menghapus token pelacakan lama.
 

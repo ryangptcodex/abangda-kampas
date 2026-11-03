@@ -55,7 +55,7 @@ function fixture(options = {}) {
   };
   vm.createContext(context);
   vm.runInContext(source, context);
-  const payload = () => ({nama_pemesan:'Budi', no_whatsapp:'081234567890',tipe_pengiriman:'Delivery',alamat:'Jalan Toko 1',catatan:'',items:[{id:'P1',qty:2,harga:1,nama:'Harga Palsu'}],total_harga:1,diskon:999999});
+  const payload = () => ({nama_pemesan:'Budi', no_whatsapp:'081234567890',tipe_pengiriman:'Delivery',alamat:'Jalan Toko 1',catatan:'',items:[{id:context.productKeyFromRow_(tables.products[1],tables.products[0]),qty:2,harga:1,nama:'Harga Palsu'}],total_harga:1,diskon:999999});
   return {context,tables,sheets,payload,alerts,releases:()=>releases,attempts:()=>attempts};
 }
 

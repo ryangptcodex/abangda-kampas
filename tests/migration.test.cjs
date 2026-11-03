@@ -34,5 +34,13 @@ for(const option of [{busy:true},{failBackup:true},{tables:{orders:[['status','s
  const t=fixture(option),before=structuredClone(t.tables);t.context.updateSheetStructure_();assert.deepEqual(t.tables,before);assert.equal(t.mutations,0);assert.equal(t.held,false);assert.match(t.alerts[0],/belum selesai/);
 }
 const dual=fixture({tables:{banners:[['id_banner','keterangan','url_gambar','link'],['OLD','Promo baru','img','dest']]}});dual.context.updateSheetStructure_();assert.deepEqual(dual.tables.banners,[['keterangan','url_gambar','link'],['Promo baru','img','dest']]);
+for(const productHeader of ['ID Product',' id_products ', 'ID-PRODUK','idproduct']){
+ const t=fixture({tables:{products:[[productHeader,' Nama ',' BRAND ','Harga','Catatan Tambahan'],['OLD','Beras','Abangda',10000,'=1+1']],brands:[['ID Brands','Nama_Brand','url_logo'],['BR','Abangda','logo']],banners:[[' ID Banners ','url_gambar'],['Promo','img']]}});
+ t.context.setupDatabase_(); // Existing saved menu also uses the safe updater.
+ assert.equal(t.copies,1);assert.equal(t.tables.products[0].includes(productHeader),false);assert.deepEqual(t.tables.products[1],['Beras','Abangda',10000,'=1+1']);
+ assert.ok(t.tables.products[0].includes('nama'));assert.equal(t.tables.brands[0].includes('ID Brands'),false);assert.equal(t.tables.banners[0][0],'keterangan');
+ const before=structuredClone(t.tables);t.context.updateSheetStructure_();assert.deepEqual(t.tables,before);
+}
+const normalizedDuplicate=fixture({tables:{products:[['nama',' Nama '],['Beras','Lain']]}});normalizedDuplicate.context.updateSheetStructure_();assert.equal(normalizedDuplicate.mutations,0);assert.equal(normalizedDuplicate.copies,0);
 const failed=fixture({failWrite:true});failed.context.updateSheetStructure_();assert.equal(failed.copies,1);assert.match(failed.alerts[0],/Sebagian perubahan/);assert.match(failed.alerts[0],/https:.*backup/);assert.equal(failed.held,false);
 console.log('PASS migration: backup before writes, 7 schemas, preserves rows/formulas/custom columns/settings, removes obsolete IDs/tokens, renames banner header, no samples, idempotent, bounded validations, busy/backup/duplicate/write failure handling.');
