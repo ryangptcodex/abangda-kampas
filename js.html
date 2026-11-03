@@ -1282,7 +1282,7 @@ function submitCheckout() {
   safeRun('createOrder', function(res) {
     cartCheckoutPending = false;
     btn.disabled = false;
-    btn.innerHTML = '<i class="fa-brands fa-whatsapp text-lg"></i><span>Siapkan Pesanan</span>';
+    btn.innerHTML = '<i class="fa-brands fa-whatsapp text-lg"></i><span>Lanjut ke WhatsApp</span>';
     if (!res.success) {
       closeCheckoutWindow_(whatsappWindow);
       if(res.existingOrderId)showPreviousCheckout_(res.existingOrderId);
