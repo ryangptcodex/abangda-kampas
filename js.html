@@ -1159,6 +1159,35 @@ function showPreviousCheckout_(id) {
   box.replaceChildren(text,track,reset);
 }
 
+function openCheckoutWindow_() {
+  try {
+    const target = window.open('about:blank','_blank');
+    if (target) {
+      target.opener = null;
+      try { target.document.title = 'Menyiapkan WhatsApp'; target.document.body.textContent = 'Sedang menyimpan pesanan. WhatsApp akan terbuka setelah pesanan tercatat.'; } catch (_) {}
+    }
+    return target;
+  } catch (_) { return null; }
+}
+
+function closeCheckoutWindow_(target) {
+  try { if (target && !target.closed) target.close(); } catch (_) {}
+}
+
+function handoffWhatsApp_(res, target) {
+  let href = '';
+  try { const url = new URL(res.waUrl); if (url.origin === 'https://wa.me' && /^\/\d+$/.test(url.pathname)) href = url.href; } catch (_) {}
+  let opened = false;
+  if (href) { try { if(target && !target.closed) { target.location.replace(href); opened = true; } } catch (_) {} }
+  if (!opened) closeCheckoutWindow_(target);
+  let notice = document.getElementById('orderHandoffNotice');
+  if (!notice) { notice=node_('div','bg-sky-50 border border-sky-200 p-3 rounded-xl text-xs space-y-2 mb-3');notice.id='orderHandoffNotice';document.querySelector('main').prepend(notice); }
+  const line=node_('p','','Pesanan ');const id=node_('strong','',res.orderId);id.id='lastOrderId';line.append(id,document.createTextNode(opened ? ' sudah tercatat.' : ' sudah tercatat. Tekan tautan di bawah untuk membuka WhatsApp.'));
+  notice.replaceChildren(line);
+  if(href){const link=node_('a','inline-flex text-brand-blue font-bold mr-3',opened ? 'Buka WhatsApp lagi' : 'Buka WhatsApp');link.id='orderWhatsAppLink';link.href=href;link.target='_blank';link.rel='noopener noreferrer';notice.append(link);}
+  const track=node_('button','text-brand-blue font-bold','Lacak Pesanan Ini');track.type='button';track.onclick=function(){switchTab('lacak');};notice.append(track);
+}
+
 function submitCheckout() {
     if (couponCheckPending) { showToast('Tunggu pemeriksaan voucher selesai atau hapus kode voucher terlebih dahulu.'); return; }
     if (!cartReadyForChanges()) return;
@@ -1184,6 +1213,8 @@ function submitCheckout() {
     kode_kupon: appliedCoupon ? appliedCoupon.code : ''
   };
   payload.request_id = checkoutRequestId_(payload);
+  // Reserve a tab during the click gesture; delayed RPC callbacks cannot reliably open popups.
+  const whatsappWindow = openCheckoutWindow_();
   cartCheckoutPending = true;
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-circle-notch animate-spin"></i> MENYIMPAN PESANAN...';
@@ -1192,6 +1223,7 @@ function submitCheckout() {
     btn.disabled = false;
     btn.innerHTML = '<i class="fa-brands fa-whatsapp text-lg"></i><span>Lanjut ke WhatsApp</span>';
     if (!res.success) {
+      closeCheckoutWindow_(whatsappWindow);
       if(res.existingOrderId)showPreviousCheckout_(res.existingOrderId);
       showToast(res.message || 'Pesanan belum berhasil disimpan.');
       return;
@@ -1199,29 +1231,6 @@ function submitCheckout() {
     checkoutAttempt = null;
     try { localStorage.removeItem('tokoAbangda.checkout.v1'); localStorage.setItem('tokoAbangda.lastOrder',res.orderId); } catch (_) {}
     couponPreviewMemo.clear();
-    const summary = res.summary;
-    document.getElementById('confirmOrderId').innerText = res.orderId;
-    let html = '<p><strong>Nama:</strong> ' + escapeHtml(summary.nama_pemesan) + '</p>';
-    html += '<p><strong>Pengiriman:</strong> ' + escapeHtml(summary.tipe_pengiriman) + '</p>';
-    html += '<p><strong>Subtotal produk:</strong> Rp ' + summary.subtotal.toLocaleString('id-ID') + '</p>';
-    if (summary.kode_kupon && summary.diskon > 0) {
-      html += '<p><strong>Kupon:</strong> ' + escapeHtml(summary.kode_kupon) + ' (-Rp ' + summary.diskon.toLocaleString('id-ID') + ')</p>';
-    }
-    html += '<p><strong>Estimasi total produk:</strong> Rp ' + summary.total_harga.toLocaleString('id-ID') + '</p>';
-    html += '<p class="text-slate-500 pt-1">Stok, ongkir jika ada, total akhir, dan pembayaran dikonfirmasi admin melalui WhatsApp.</p>';
-    document.getElementById('confirmSummary').innerHTML = html;
-    let link = document.getElementById('confirmWhatsAppLink');
-    if (!link) {
-      link = document.createElement('a');
-      link.id = 'confirmWhatsAppLink';
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.className = 'block w-full max-w-xs mx-auto py-3 bg-emerald-600 text-white font-bold text-xs rounded-xl';
-      document.getElementById('confirmSummary').after(link);
-    }
-    link.href = res.waUrl;
-    link.textContent = 'Kirim / Buka Lagi Pesanan di WhatsApp';
-    link.classList.remove('hidden');
     const trackInput = document.getElementById('trackOrderIdInput');
     clearTrackingResult();
     if (trackInput) trackInput.value = res.orderId;
@@ -1229,7 +1238,8 @@ function submitCheckout() {
     updateCartBadge();
     renderCartUI();
     removeCoupon(true);
-    switchTab('konfirmasi');
+    switchTab('home');
+    handoffWhatsApp_(res,whatsappWindow);
   }, payload);
 }
 
@@ -1354,7 +1364,7 @@ function submitCheckout() {
       return;
     }
 
-    const pages = ['Home', 'Katalog', 'Checkout', 'Konfirmasi', 'Lacak', 'CaraOrder'];
+    const pages = ['Home', 'Katalog', 'Checkout', 'Lacak', 'CaraOrder'];
     pages.forEach(function(p) {
       const el = document.getElementById('page' + p);
       if (el) el.classList.add('hidden');

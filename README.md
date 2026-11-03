@@ -22,6 +22,16 @@ Ganti **kelima file lengkap** dari versi yang sama. Gunakan **Copy raw file** di
 
 Asisten belum dapat mengakses spreadsheet/deployment asli. Semua validasi yang dilaporkan dari repo memakai layanan Apps Script/Sheets tiruan dan Chromium. Jangan menganggap pemasangan kode otomatis berarti sheet sudah dimigrasikan atau deployment sudah diperbarui.
 
+## Langsung membuka WhatsApp tanpa halaman konfirmasi
+
+Ganti seluruh isi **js.html** dan **index.html**, simpan, lalu perbarui deployment `/exec`. File backend, setup, dan CSS tidak berubah pada revisi alur ini. Halaman Pesanan Tercatat/konfirmasi sudah dihapus.
+
+Saat pelanggan menekan Lanjut ke WhatsApp, aplikasi menyiapkan tab pada klik tersebut, mencatat pesanan, kemudian mengarahkan tab ke URL `wa.me` dari hasil server. Menyiapkan tab pada klik diperlukan agar browser tidak menganggap navigasi sebagai popup tanpa tindakan pengguna ketika respons server baru tiba. Aplikasi WhatsApp atau WhatsApp Web dibuka sesuai perangkat dan pengaturan tautan; browser/OS tetap dapat menampilkan pilihan membuka aplikasi. Pesan tidak dikirim otomatis: pelanggan tetap menekan Kirim di WhatsApp.
+
+Jika server gagal, tab persiapan ditutup dan keranjang serta kunci retry dipertahankan. Jika popup diblokir/ditutup pengguna, muncul tautan kecil Buka WhatsApp dengan ID pesanan pada halaman aplikasi; tautan ini memakai pesanan yang sudah tercatat dan tidak membuat order kedua. Setelah berhasil, halaman aplikasi kembali ke beranda, bukan halaman konfirmasi. ID tetap disimpan untuk tracking; rincian pribadi tidak ditambahkan ke localStorage.
+
+Uji `tests/handoff.browser.cjs` memakai tab Chromium nyata dengan tujuan WhatsApp tiruan: tab dibuat sebelum server menyelesaikan order, navigasi terjadi sesudah pencatatan, popup gagal memiliki fallback tanpa order tambahan, dan kegagalan checkout menutup tab sambil mempertahankan keranjang. Pembukaan aplikasi WhatsApp asli dan aturan popup iframe Apps Script pada perangkat pelanggan tetap perlu diuji pada deployment `/exec`.
+
 ## Format pesan WhatsApp
 
 Untuk pembaruan format, ganti seluruh isi **code.gs/Kode.gs** dan **setup.gs**, simpan, lalu perbarui deployment `/exec`. Muat ulang spreadsheet → **Perbarui Struktur Sheet** untuk menambahkan kolom opsional `satuan` pada products. Isi `box` untuk produk yang dijual per box, `botol`, `kg`, atau satuan lain; kosong berarti `pcs`. Kolom ini tidak mengubah harga atau kuantitas: harga harus tetap merupakan harga per satuan yang dijual. Rincian pesanan baru menyimpan satuan pada snapshot agar retry tidak berubah ketika data produk diedit.

@@ -21,10 +21,10 @@ const path = require('node:path');
  if(method==='createOrder'){
  window.submitted=args[0];window.orderCalls=(window.orderCalls||0)+1;
  if(window.failOrder){success({success:false,message:'Kuota kupon telah habis.'});return;}
- success({success:true,orderId:'TA-20261025-001',trackingToken:'a'.repeat(64),waUrl:'https://wa.me/6282331463166?text=pesanan',summary:{nama_pemesan:args[0].nama_pemesan,tipe_pengiriman:'Delivery',subtotal:69000,kode_kupon:'HEMAT',diskon:6900,total_harga:62100}});
+ success({success:true,orderId:'TA-20261025-001',trackingToken:'a'.repeat(64),waUrl:'https://wa.me/6282331463166?text=Total%2062.100',summary:{nama_pemesan:args[0].nama_pemesan,tipe_pengiriman:'Delivery',subtotal:69000,kode_kupon:'HEMAT',diskon:6900,total_harga:62100}});
  }else success(responses[method]);
  },10);}});}};}}}};
- window.open=()=>{throw Error('Automatic popup must not be used');};
+ window.open=()=>null; // Exercise the blocked-popup fallback.
  </script>`;
  const root=path.join(__dirname,'..');
  let html=fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/<\?!= include\('css'\);?\s*\?>/, '').replace(/<\?!= include\('js'\);?\s*\?>/,()=>mock+fs.readFileSync(path.join(root,'js.html'),'utf8'));
@@ -57,26 +57,26 @@ const path = require('node:path');
  assert.equal(await page.evaluate(()=>Object.hasOwn(window.submitted.items[0],'harga')),false);
  await page.evaluate(()=>{window.failOrder=false;});
  await page.locator('#btnSubmitCheckout').click();
- await page.locator('#pageKonfirmasi').waitFor({state:'visible'});
- assert.match(await page.locator('#confirmSummary').innerText(),/62\.100/);
- assert.equal(await page.locator('#confirmSummary img').count(),0);
- assert.equal(await page.locator('#confirmWhatsAppLink').isVisible(),true);
- assert.match(await page.locator('#confirmWhatsAppLink').getAttribute('href'),/^https:\/\/wa\.me\//);
- assert.equal(await page.locator('#confirmWhatsAppLink').getAttribute('target'),'_blank');
+ await page.locator('#orderHandoffNotice').waitFor({state:'visible'});
+ assert.match(decodeURIComponent(await page.locator('#orderWhatsAppLink').getAttribute('href')),/62\.100/);
+ assert.equal(await page.locator('#orderHandoffNotice img').count(),0);assert.equal(await page.locator('#pageKonfirmasi').count(),0);
+ assert.equal(await page.locator('#orderWhatsAppLink').isVisible(),true);
+ assert.match(await page.locator('#orderWhatsAppLink').getAttribute('href'),/^https:\/\/wa\.me\//);
+ assert.equal(await page.locator('#orderWhatsAppLink').getAttribute('target'),'_blank');
  assert.equal(await page.locator('#trackOrderIdInput').inputValue(),'TA-20261025-001');
  assert.equal(await page.locator('#cartBadge').isVisible(),false);
  assert.equal(context.pages().length,1);
- // Reopening the confirmation link does not submit createOrder again.
+ // Reopening the fallback link does not submit createOrder again.
  const calls=await page.evaluate(()=>window.orderCalls);
  const popupPromise=context.waitForEvent('page');
- await page.locator('#confirmWhatsAppLink').click();
+ await page.locator('#orderWhatsAppLink').click();
  const popup=await popupPromise;await popup.close();
  assert.equal(await page.evaluate(()=>window.orderCalls),calls);
  // Compatibility with an older index: restore dynamically if the link is absent.
- await page.evaluate(()=>{document.getElementById('confirmWhatsAppLink').remove();quickAddToCart('P1','Beras',34500,10,'','Abangda');switchTab('checkout');});
+ await page.evaluate(()=>{document.getElementById('orderWhatsAppLink').remove();quickAddToCart('P1','Beras',34500,10,'','Abangda');switchTab('checkout');});
  await page.locator('#btnSubmitCheckout').click();
- await page.locator('#confirmWhatsAppLink').waitFor({state:'visible'});
+ await page.locator('#orderWhatsAppLink').waitFor({state:'visible'});
  assert.deepEqual(errors,[]);
- console.log('PASS browser: mobile home, Cara Order, checkout failure retains cart, canonical server total, escaped name, direct WhatsApp link, link reuse without resubmission, compatibility with previous index.');
+ console.log('PASS browser: mobile home, Cara Order, checkout failure retains cart, canonical server WhatsApp total, no confirmation page, fallback WhatsApp link, link reuse without resubmission, compatibility with previous index.');
  } finally {await browser.close();}
 })().catch(e=>{console.error(e);process.exit(1);});

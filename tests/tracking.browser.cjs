@@ -14,7 +14,8 @@ const { fixture } = require('./helpers/apps-script.cjs');
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
     await page.route('https://**/*', route => route.abort());
-    await page.exposeFunction('__testServer', async (method,args) => {
+    await page.context().route('https://wa.me/**',r=>r.fulfill({contentType:'text/html',body:'WhatsApp handoff test'}));
+  await page.exposeFunction('__testServer', async (method,args) => {
       assert.ok(['getInitialData','getProducts','getProductById','createOrder','validateCoupon','trackOrder'].includes(method));
       counts[method] = (counts[method] || 0) + 1;
       const response = JSON.parse(JSON.stringify(f.context[method](...args)));
@@ -39,10 +40,10 @@ const { fixture } = require('./helpers/apps-script.cjs');
     await page.locator('#coWa').fill('081234567890');
     await page.locator('#coAlamat').fill('Alamat pribadi pemesan');
     await page.locator('#btnSubmitCheckout').click();
-    await page.locator('#pageKonfirmasi').waitFor({state:'visible'});
-    const orderId = await page.locator('#confirmOrderId').innerText();
+    await page.locator('#orderHandoffNotice').waitFor({state:'visible'});
+    const orderId = await page.locator('#lastOrderId').innerText();
     assert.equal(await page.locator('#confirmTrackingToken, #trackOrderTokenInput').count(),0);
-    assert.doesNotMatch(decodeURIComponent(await page.locator('#confirmWhatsAppLink').getAttribute('href')),/kode pelacakan/i);
+    assert.doesNotMatch(decodeURIComponent(await page.locator('#orderWhatsAppLink').getAttribute('href')),/kode pelacakan/i);
     await page.getByRole('button',{name:'Lacak Pesanan Ini',exact:true}).click();
     await page.locator('#btnSubmitTrack').click();
     await page.waitForFunction(() => document.getElementById('trackResultBox').textContent.includes('Menunggu Konfirmasi Stok'));

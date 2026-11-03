@@ -4,7 +4,7 @@
   "scripts": {
     "build:css": "node scripts/build-css.cjs",
     "test:backend": "node tests/checkout.test.cjs && node tests/migration.test.cjs",
-    "test:browser": "node tests/checkout.browser.cjs && node tests/tracking.browser.cjs && node tests/cart.browser.cjs && node tests/wholesale.browser.cjs && node tests/launch.browser.cjs && node tests/retry.browser.cjs"
+    "test:browser": "node tests/checkout.browser.cjs && node tests/tracking.browser.cjs && node tests/cart.browser.cjs && node tests/wholesale.browser.cjs && node tests/launch.browser.cjs && node tests/retry.browser.cjs && node tests/handoff.browser.cjs"
   },
   "devDependencies": {
     "tailwindcss": "3.4.17",

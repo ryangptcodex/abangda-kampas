@@ -11,6 +11,7 @@ const {fixture}=require('./helpers/apps-script.cjs');
   const productKey=f.context.getProducts('','ALL','ALL',1,6).data[0].id_produk;
   const page=await browser.newPage({viewport:{width:390,height:844}});page.setDefaultTimeout(10000);
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.context().route('https://wa.me/**',r=>r.fulfill({contentType:'text/html',body:'WhatsApp handoff test'}));
   await page.exposeFunction('__shopServer',(method,args)=>{
    assert.ok(['getInitialData','getProducts','getProductById','getCartSnapshot','validateCoupon','createOrder','trackOrder'].includes(method));
    return JSON.parse(JSON.stringify(f.context[method](...args)));
@@ -86,11 +87,11 @@ const {fixture}=require('./helpers/apps-script.cjs');
   await page.locator('#coCouponCode').fill('HEMAT');await page.locator('#btnApplyCoupon').click();
   await page.waitForFunction(()=>!document.getElementById('couponAppliedBox').classList.contains('hidden'));
   assert.match(await page.locator('#coTotalTagihan').innerText(),/81\.000/);
-  await page.locator('#btnSubmitCheckout').click();await page.locator('#pageKonfirmasi').waitFor({state:'visible'});
-  assert.match(await page.locator('#confirmSummary').innerText(),/81\.000/);
-  const id=await page.locator('#confirmOrderId').innerText();
+  await page.locator('#btnSubmitCheckout').click();await page.locator('#orderHandoffNotice').waitFor({state:'visible'});
+  assert.match(decodeURIComponent(await page.locator('#orderWhatsAppLink').getAttribute('href')),/81\.000/);
+  const id=await page.locator('#lastOrderId').innerText();
   const order=f.context.trackOrder(id);assert.equal(order.order.total_harga,81000);assert.equal(order.order.items[0].harga,30000);
-  const message=new URL(await page.locator('#confirmWhatsAppLink').getAttribute('href')).searchParams.get('text');assert.match(message,/90\.000/);assert.match(message,/81\.000/);
+  const message=new URL(await page.locator('#orderWhatsAppLink').getAttribute('href')).searchParams.get('text');assert.match(message,/90\.000/);assert.match(message,/81\.000/);
   // Very narrow mobile and desktop widths do not clip category labels.
   for(const width of [320,768,1280]){
    await page.setViewportSize({width,height:844});await page.evaluate(()=>switchTab('home'));

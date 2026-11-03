@@ -356,7 +356,7 @@
           </div>
         </div>
 
-        <p class="text-[11px] text-slate-500 leading-relaxed">Pesanan akan dicatat, lalu Anda bisa mengirim rinciannya melalui WhatsApp. Stok, ongkir jika ada, total akhir, dan pembayaran dikonfirmasi admin.</p>
+        <p class="text-[11px] text-slate-500 leading-relaxed">Pesanan akan dicatat, lalu WhatsApp terbuka dengan rincian pesanan. Tekan Kirim di WhatsApp untuk menghubungi toko. Stok, ongkir jika ada, total akhir, dan pembayaran dikonfirmasi admin.</p>
 
         <button type="submit" id="btnSubmitCheckout" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-md hover:shadow-emerald-200 transition flex items-center justify-center gap-2 active:scale-95">
           <i class="fa-brands fa-whatsapp text-lg"></i>
@@ -365,37 +365,11 @@
       </form>
     </section>
 
-    <!-- HALAMAN 5: KONFIRMASI PESANAN -->
-    <section id="pageKonfirmasi" class="space-y-4 text-center py-6 hidden">
-      <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-2xl shadow-inner">
-        <i class="fa-solid fa-check"></i>
-      </div>
-      <div>
-        <h2 class="text-base font-bold text-slate-800">Pesanan Tercatat</h2>
-        <p class="text-xs text-slate-500 mt-1">Kirim pesan ke WhatsApp toko untuk konfirmasi pesanan.</p>
-        <p class="text-xs text-slate-500 mt-1">ID Pesanan Anda:</p>
-        <p id="confirmOrderId" class="font-mono font-bold text-brand-blue text-sm mt-0.5 select-all">TA-XXXX</p>
-      </div>
-
-      <div id="confirmSummary" class="bg-white p-3.5 rounded-2xl border border-slate-100 text-left text-xs space-y-1 max-w-xs mx-auto shadow-sm"></div>
-
-      <a id="confirmWhatsAppLink" target="_blank" rel="noopener noreferrer" class="hidden block w-full max-w-xs mx-auto py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl">Kirim / Buka Lagi Pesanan di WhatsApp</a>
-
-      <div class="space-y-2 pt-2">
-        <button onclick="switchTab('lacak')" class="w-full max-w-xs py-2 bg-brand-blue text-white font-semibold text-xs rounded-xl shadow transition">
-          Lacak Pesanan Ini
-        </button>
-        <button onclick="switchTab('home')" class="w-full max-w-xs py-2 bg-slate-100 text-slate-700 font-semibold text-xs rounded-xl transition">
-          Kembali ke Beranda
-        </button>
-      </div>
-    </section>
-
     <!-- PELACAKAN PESANAN -->
     <section id="pageLacak" class="space-y-3 hidden">
       <div class="pb-2 border-b border-slate-200">
         <h2 class="text-sm font-bold text-slate-800">Lacak Status Pesanan</h2>
-        <p class="text-[11px] text-slate-500">Masukkan ID pesanan dari halaman konfirmasi atau pesan pesanan WhatsApp.</p>
+        <p class="text-[11px] text-slate-500">Masukkan ID pesanan yang tercantum pada pesan pesanan WhatsApp.</p>
       </div>
       <form onsubmit="event.preventDefault(); submitTrackOrder();" class="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
         <div>
@@ -435,7 +409,7 @@
         </li>
         <li class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex gap-3">
           <span aria-hidden="true" class="w-7 h-7 flex-shrink-0 rounded-full bg-sky-100 text-brand-blue flex items-center justify-center text-xs font-bold">5</span>
-          <div><h3 class="text-xs font-bold text-slate-800">Simpan ID dan lacak pesanan</h3><p class="text-xs text-slate-600 leading-relaxed mt-1">Simpan ID Pesanan yang tampil setelah checkout. Buka menu Lacak Status Pesanan dan masukkan ID tersebut untuk melihat perkembangan pesanan.</p></div>
+          <div><h3 class="text-xs font-bold text-slate-800">Simpan ID dan lacak pesanan</h3><p class="text-xs text-slate-600 leading-relaxed mt-1">Simpan ID Pesanan yang tercantum dalam pesan WhatsApp. Buka menu Lacak Status Pesanan dan masukkan ID tersebut untuk melihat perkembangan pesanan.</p></div>
         </li>
       </ol>
       <button type="button" onclick="switchTab('katalog')" class="w-full py-3 bg-brand-blue hover:bg-brand-darkblue text-white text-xs font-bold rounded-xl transition">Mulai Belanja</button>
