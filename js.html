@@ -1263,7 +1263,7 @@ function instantWhatsAppUrl_(payload) {
   const dateParts = new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jakarta',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
   const datePart = type => dateParts.find(part=>part.type===type).value;
   const dateText = datePart('day')+'/'+datePart('month')+'/'+datePart('year')+' '+datePart('hour')+':'+datePart('minute')+' WIB';
-  let message = '👋🏻 Halo Abangda...\n\n*PESANAN BARU - TOKO ABANGDA*\n*ID Pesanan:* '+id+'\n*Tanggal:* '+dateText+'\n\n';
+  let message = '👋🏻 Halo Abangda...\n\n*PESANAN BARU - TOKO ABANGDA*\n*ID Pesanan:* '+id+'\n*Tanggal:* '+dateText+'\n';
   message += '*Nama:* '+payload.nama_pemesan+'\n*No. WhatsApp:* '+buyerPhone+'\n*Pengiriman:* '+(payload.tipe_pengiriman==='Delivery'?'Diantar':'Ambil Sendiri')+'\n';
   if(payload.tipe_pengiriman==='Delivery')message+='*Alamat:* '+payload.alamat+'\n';
   message+='*Catatan:* '+(payload.catatan||'-')+'\n\n*RINCIAN PESANAN:*\n';

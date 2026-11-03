@@ -97,7 +97,6 @@ function checkoutResponse_(orderId, dateText, summary, waTarget) {
   const delivery = summary.tipe_pengiriman === 'Delivery' ? 'Diantar' : 'Ambil Sendiri';
   let message = '👋🏻 Halo Abangda...\n\n*PESANAN BARU - TOKO ABANGDA*\n';
   message += '*ID Pesanan:* ' + orderId + '\n*Tanggal:* ' + String(dateText).replace(/(\d{2}:\d{2}):\d{2}$/, '$1') + ' WIB\n';
-  message += '\n';
   message += '*Nama:* ' + summary.nama_pemesan + '\n*No. WhatsApp:* ' + summary.no_whatsapp + '\n';
   message += '*Pengiriman:* ' + delivery + '\n';
   if (summary.alamat) message += '*Alamat:* ' + summary.alamat + '\n';
@@ -109,7 +108,7 @@ function checkoutResponse_(orderId, dateText, summary, waTarget) {
   message += '\nSubtotal produk: Rp ' + summary.subtotal.toLocaleString('id-ID') + '\n';
   if (summary.kode_kupon) message += 'Diskon (' + summary.kode_kupon + '): -Rp ' + summary.diskon.toLocaleString('id-ID') + '\n';
   message += '*Estimasi total produk: Rp ' + summary.total_harga.toLocaleString('id-ID') + '*\n_Belum termasuk ongkir jika ada._\n\n';
-  message += 'Simpan ID pesanan ini untuk melacak pesanan.\n\n';
+  message += 'Simpan ID pesanan ini. Pelacakan tersedia setelah pencatatan berhasil.\n\n';
   message += '_Mohon konfirmasi ketersediaan barang, voucher jika digunakan, ongkir, total akhir, dan cara pembayaran._\n';
   message += '_Terima kasih, Abangda!_';
   return {success:true,orderId:orderId,waUrl:'https://wa.me/' + waTarget + '?text=' + encodeURIComponent(message),summary:summary};
