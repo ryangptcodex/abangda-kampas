@@ -49,21 +49,24 @@ function replayCheckout_(sheet, requestId, requestHash) {
 }
 
 function checkoutResponse_(orderId, dateText, summary, waTarget) {
-  let message = '*PESANAN BARU - TOKO ABANGDA*\n';
-    message += '*ID Pesanan:* ' + orderId + '\n*Tanggal:* ' + dateText + '\n';
-    message += '_Simpan ID pesanan ini untuk melacak pesanan._\n';
-    message += '*Nama:* ' + summary.nama_pemesan + '\n*No. WA:* ' + summary.no_whatsapp + '\n';
-    message += '*Pengiriman:* ' + summary.tipe_pengiriman + '\n';
-    if (summary.alamat) message += '*Alamat:* ' + summary.alamat + '\n';
-    message += '*Catatan:* ' + (summary.catatan || '-') + '\n\n*RINCIAN ITEM:*\n';
-    summary.items.forEach(function(item) {
-      message += '• ' + item.nama + (item.brand ? ' [' + item.brand + ']' : '') + ' (' + item.qty + 'x) = Rp ' + (item.harga * item.qty).toLocaleString('id-ID') + '\n';
-    });
-    message += '\nSubtotal: Rp ' + summary.subtotal.toLocaleString('id-ID') + '\n';
-    if (summary.kode_kupon) message += 'Diskon (' + summary.kode_kupon + '): -Rp ' + summary.diskon.toLocaleString('id-ID') + '\n';
-    message += '*Estimasi total produk: Rp ' + summary.total_harga.toLocaleString('id-ID') + '*\n';
-    message += '_Mohon konfirmasi stok, ongkir jika ada, total akhir, dan cara pembayaran. Terima kasih!_';
-    return { success: true, orderId: orderId, waUrl: 'https://wa.me/' + waTarget + '?text=' + encodeURIComponent(message), summary: summary };
+  const delivery = summary.tipe_pengiriman === 'Delivery' ? 'Diantar' : 'Ambil Sendiri';
+  let message = '👋🏻 Halo Abangda...\n\n*PESANAN BARU - TOKO ABANGDA*\n';
+  message += '*ID Pesanan:* ' + orderId + '\n*Tanggal:* ' + dateText + '\n';
+  message += '_Simpan ID pesanan ini untuk melacak pesanan._\n\n';
+  message += '*Nama:* ' + summary.nama_pemesan + '\n*No. WhatsApp:* ' + summary.no_whatsapp + '\n';
+  message += '*Pengiriman:* ' + delivery + '\n';
+  if (summary.alamat) message += '*Alamat:* ' + summary.alamat + '\n';
+  message += '*Catatan:* ' + (summary.catatan || '-') + '\n\n*RINCIAN ITEM:*\n';
+  summary.items.forEach(function(item) {
+    const name = item.nama + (item.brand && !item.nama.toLowerCase().includes(item.brand.toLowerCase()) ? ' [' + item.brand + ']' : '');
+    message += '• ' + name + ' x ' + item.qty + ' ' + (item.satuan || 'pcs') + ' = Rp ' + (item.harga * item.qty).toLocaleString('id-ID') + '\n';
+  });
+  message += '\nSubtotal : Rp ' + summary.subtotal.toLocaleString('id-ID') + '\n';
+  if (summary.kode_kupon) message += 'Diskon (' + summary.kode_kupon + ') : -Rp ' + summary.diskon.toLocaleString('id-ID') + '\n';
+  message += '*Total : Rp ' + summary.total_harga.toLocaleString('id-ID') + '*\n\n';
+  message += '_Mohon konfirmasi stok, ongkir jika ada, total akhir, dan cara pembayaran._\n';
+  message += '_Terima kasih Abangda!_';
+  return {success:true,orderId:orderId,waUrl:'https://wa.me/' + waTarget + '?text=' + encodeURIComponent(message),summary:summary};
 }
 
 function doGet() {
@@ -142,7 +145,7 @@ function productFromRow_(row, headers) {
       throw new Error('Isi harga_grosir dan min_beli_grosir dengan benar untuk ' + id + '. Harga grosir harus lebih dari nol dan tidak melebihi harga normal.');
     }
   }
-  return {id_produk:id, nama:name, id_kategori:String(field('id_kategori')), brand:String(field('brand')),
+  return {id_produk:id, nama:name, satuan:String(field('satuan')).trim() || 'pcs', id_kategori:String(field('id_kategori')), brand:String(field('brand')),
     harga:price, harga_grosir:wholesale, min_beli_grosir:minimum,
     deskripsi:String(field('deskripsi')), url_foto:String(field('url_foto'))};
 }
@@ -517,7 +520,7 @@ function createOrder(orderPayload) {
       const price = unitPriceForQuantity_(product, qty);
       subtotal += price * qty;
       if (!Number.isSafeInteger(subtotal)) throw new Error('Total pesanan terlalu besar.');
-      items.push({id:id, nama:product.nama, brand:product.brand, harga:price, qty:qty,
+      items.push({id:id, nama:product.nama, brand:product.brand, satuan:product.satuan, harga:price, qty:qty,
         harga_normal:product.harga, harga_grosir:product.harga_grosir, min_beli_grosir:product.min_beli_grosir});
     });
     const couponCode = text(payload.kode_kupon, 64, 'Kode kupon').toUpperCase();

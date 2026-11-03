@@ -149,6 +149,14 @@ test('checkout always revalidates live coupon even when preview rules are cached
  const f=fixture();assert.equal(f.context.validateCoupon('HEMAT',69000).success,true);f.tables.coupons[1][5]='NONAKTIF';
  const p=f.payload();p.kode_kupon='HEMAT';const r=f.context.createOrder(p);assert.equal(r.success,false);assert.match(r.message,/tidak aktif/);assert.equal(f.tables.orders.length,1);
 });
+test('WhatsApp uses the requested greeting, Indonesian delivery label, units and coupon totals',()=>{
+ const f=fixture();f.tables.products[0].push('satuan');f.tables.products[1].push('box');const p=f.payload();p.kode_kupon='HEMAT';
+ const r=f.context.createOrder(p);assert.equal(r.success,true);const text=new URL(r.waUrl).searchParams.get('text');
+ assert.ok(text.startsWith('👋🏻 Halo Abangda...\n\n*PESANAN BARU - TOKO ABANGDA*\n'));
+ assert.match(text,/No\. WhatsApp:/);assert.match(text,/Pengiriman:\* Diantar/);assert.match(text,/• Beras \[Abangda\] x 2 box = Rp 69\.000/);assert.match(text,/Diskon \(HEMAT\) : -Rp 6\.900/);assert.match(text,/\*Total : Rp 62\.100\*/);assert.ok(text.endsWith('_Terima kasih Abangda!_'));
+ assert.deepEqual(f.context.createOrder(p),r);
+ const other=f.payload();other.tipe_pengiriman='Takeaway';other.alamat='';const take=f.context.createOrder(other);const takeText=new URL(take.waUrl).searchParams.get('text');assert.match(takeText,/Ambil Sendiri/);assert.doesNotMatch(takeText,/\*Alamat:/);
+});
 test('cart snapshot returns current catalog fields and ignores saved display data',()=>{
  const f=fixture();f.tables.products[1][4]=40000;
  const before=JSON.stringify(f.tables);

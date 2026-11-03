@@ -548,7 +548,8 @@ function databaseSchemas_() {
       'url_foto',
       'is_unggulan',
       'harga_grosir',
-      'min_beli_grosir'
+      'min_beli_grosir',
+      'satuan'
     ],
     categories: [
       'nama',

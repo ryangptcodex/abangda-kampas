@@ -22,6 +22,12 @@ Ganti **kelima file lengkap** dari versi yang sama. Gunakan **Copy raw file** di
 
 Asisten belum dapat mengakses spreadsheet/deployment asli. Semua validasi yang dilaporkan dari repo memakai layanan Apps Script/Sheets tiruan dan Chromium. Jangan menganggap pemasangan kode otomatis berarti sheet sudah dimigrasikan atau deployment sudah diperbarui.
 
+## Format pesan WhatsApp
+
+Untuk pembaruan format, ganti seluruh isi **code.gs/Kode.gs** dan **setup.gs**, simpan, lalu perbarui deployment `/exec`. Muat ulang spreadsheet → **Perbarui Struktur Sheet** untuk menambahkan kolom opsional `satuan` pada products. Isi `box` untuk produk yang dijual per box, `botol`, `kg`, atau satuan lain; kosong berarti `pcs`. Kolom ini tidak mengubah harga atau kuantitas: harga harus tetap merupakan harga per satuan yang dijual. Rincian pesanan baru menyimpan satuan pada snapshot agar retry tidak berubah ketika data produk diedit.
+
+Pesan dimulai “👋🏻 Halo Abangda...”, berisi ID/tanggal/petunjuk menyimpan ID, nama, nomor WhatsApp, pengiriman “Diantar” atau “Ambil Sendiri”, alamat bila diantar, catatan, dan rincian `nama x jumlah satuan = Rp subtotal`. Brand ditampilkan bila belum tercantum dalam nama produk agar varian tidak tertukar. Subtotal, diskon bila ada, dan total berasal dari server. Penutup meminta konfirmasi stok/ongkir/total/pembayaran dan mengucapkan “Terima kasih Abangda!”. Tebal memakai satu `*` dan miring satu `_` sesuai format WhatsApp, tanpa backslash.
+
 ## Voucher lambat — perbaikan terbaru
 
 Untuk pembaruan khusus ini, ganti seluruh isi `code.gs`/`Kode.gs` dan `js.html`, simpan, lalu perbarui deployment `/exec`. Struktur sheet dan file CSS tidak berubah.
@@ -89,7 +95,7 @@ Google Fonts, Font Awesome, dan foto tetap sumber eksternal. Jika font gagal, te
 
 ## Produk tanpa kolom ID
 
-Skema products: `nama`, `id_kategori`, `brand`, `harga`, `deskripsi`, `url_foto`, `is_unggulan`, `harga_grosir`, `min_beli_grosir`. Kolom `stok` lama diabaikan.
+Skema products: `nama`, `id_kategori`, `brand`, `harga`, `deskripsi`, `url_foto`, `is_unggulan`, `harga_grosir`, `min_beli_grosir`, `satuan`. Kolom `stok` lama diabaikan.
 
 Tidak ada ID produk yang harus diisi. Pengenal internal berasal dari nama+brand dan tidak dipengaruhi penghapusan ID lama, urutan baris, atau perubahan harga. Mengganti nama/brand membuat identitas baru; pelanggan perlu memilih ulang item yang berganti identitas. Bedakan nama setiap varian. Kolom brands cukup `nama_brand`, `url_logo`; banners memakai `keterangan`, `url_gambar`, `link`.
 
