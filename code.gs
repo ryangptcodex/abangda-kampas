@@ -47,6 +47,17 @@ function prepareWholesaleColumns_() {
   SpreadsheetApp.getUi().alert('Kolom harga_grosir dan min_beli_grosir sudah siap di sheet products. Isi keduanya untuk mengaktifkan harga grosir per produk. Data produk lama tetap dipertahankan.');
 }
 
+// Internal key only; no ID column is required in the spreadsheet.
+function productKeyFromRow_(row, headers) {
+  function value(name) { const i = headers.indexOf(name); return i < 0 ? '' : String(row[i] == null ? '' : row[i]).trim(); }
+  if (!value('nama')) return '';
+  // Accept older sheets until the structure updater removes the legacy column.
+  if (value('id_produk')) return value('id_produk');
+  const key = JSON.stringify([value('nama'), value('brand')]);
+  return 'P-' + Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, key, Utilities.Charset.UTF_8)
+    .map(function(byte) { return (byte & 255).toString(16).padStart(2, '0'); }).join('');
+}
+
 function productFromRow_(row, headers) {
   function field(name) {
     const index = headers.indexOf(name);
@@ -57,7 +68,7 @@ function productFromRow_(row, headers) {
     if (!Number.isSafeInteger(value) || value < 0) throw new Error(label + ' harus berupa angka bulat nonnegatif.');
     return value;
   }
-  const id = String(field('id_produk')).trim();
+  const id = productKeyFromRow_(row, headers);
   const name = String(field('nama')).trim();
   if (!id || !name) throw new Error('ID atau nama produk belum lengkap.');
   const price = integer(field('harga'), 'Harga ' + id);
@@ -140,13 +151,11 @@ function getInitialData() {
     if (brdSheet && brdSheet.getLastRow() > 1) {
       const brdData = brdSheet.getDataRange().getDisplayValues();
       const headers = brdData[0];
-      const idIdx = headers.indexOf('id_brand');
       const namaIdx = headers.indexOf('nama_brand');
       const logoIdx = headers.indexOf('url_logo');
 
       for (let i = 1; i < brdData.length; i++) {
         brands.push({
-          id_brand: idIdx !== -1 ? brdData[i][idIdx] : '',
           nama_brand: namaIdx !== -1 ? brdData[i][namaIdx] : '',
           url_logo: logoIdx !== -1 ? brdData[i][logoIdx] : ''
         });
@@ -160,13 +169,13 @@ function getInitialData() {
     if (bnrSheet && bnrSheet.getLastRow() > 1) {
       const bnrData = bnrSheet.getDataRange().getDisplayValues();
       const headers = bnrData[0];
-      const idIdx = headers.indexOf('id_banner');
+      const descriptionIdx = headers.indexOf('keterangan');
       const imageIdx = headers.indexOf('url_gambar');
       const linkIdx = headers.indexOf('link');
 
       for (let i = 1; i < bnrData.length; i++) {
         banners.push({
-          id_banner: idIdx !== -1 ? bnrData[i][idIdx] : '',
+          keterangan: descriptionIdx !== -1 ? bnrData[i][descriptionIdx] : '',
           url_gambar: imageIdx !== -1 ? bnrData[i][imageIdx] : '',
           link: linkIdx !== -1 ? bnrData[i][linkIdx] : ''
         });
@@ -218,7 +227,6 @@ function getProducts(searchVal, categoryId, brandVal, page, limit) {
     const rawData = sheet.getDataRange().getDisplayValues();
     const rawDataValues = sheet.getDataRange().getValues();
     const headers = rawData[0];
-    const idIdx = headers.indexOf('id_produk');
     const namaIdx = headers.indexOf('nama');
     const catIdx = headers.indexOf('id_kategori');
     const brandIdx = headers.indexOf('brand');
@@ -299,15 +307,13 @@ function getProductById(productId) {
     const rawData = sheet.getDataRange().getDisplayValues();
     const rawDataValues = sheet.getDataRange().getValues();
     const headers = rawData[0];
-    const idIdx = headers.indexOf('id_produk');
     const namaIdx = headers.indexOf('nama');
     const brandIdx = headers.indexOf('brand');
     const descIdx = headers.indexOf('deskripsi');
 
     for (let i = 1; i < rawData.length; i++) {
       if (
-        idIdx !== -1 &&
-        String(rawData[i][idIdx]).trim() === String(productId).trim()
+        productKeyFromRow_(rawDataValues[i], headers) === String(productId).trim()
       ) {
         return { success: true, product: productFromRow_(rawDataValues[i], headers) };
       }
@@ -349,13 +355,13 @@ function getCartSnapshot(savedItems) {
     const rows = sheet.getDataRange().getValues();
     const headers = rows[0] || [];
     const columns = {};
-    ['id_produk', 'nama', 'harga'].forEach(function(name) {
+    ['nama', 'harga'].forEach(function(name) {
       columns[name] = headers.indexOf(name);
       if (columns[name] < 0) throw new Error('Kolom produk belum lengkap: ' + name);
     });
     const products = new Map();
     rows.slice(1).forEach(function(row) {
-      const id = String(row[columns.id_produk] || '').trim();
+      const id = productKeyFromRow_(row, headers);
       if (!wanted.has(id)) return;
       if (products.has(id)) throw new Error('ID produk duplikat di Sheets: ' + id);
       products.set(id, row);
@@ -479,13 +485,13 @@ function createOrder(orderPayload) {
     const rows = products.getDataRange().getValues();
     const headers = rows[0] || [];
     const idx = {};
-    ['id_produk', 'nama', 'brand', 'harga'].forEach(function(field) {
+    ['nama', 'brand', 'harga'].forEach(function(field) {
       idx[field] = headers.indexOf(field);
       if (idx[field] < 0) throw new Error('Kolom produk belum lengkap: ' + field);
     });
     const byId = new Map();
     rows.slice(1).forEach(function(row) {
-      const id = String(row[idx.id_produk]).trim();
+      const id = productKeyFromRow_(row, headers);
       if (!id) return;
       if (byId.has(id)) throw new Error('ID produk duplikat di Sheets: ' + id);
       byId.set(id, row);

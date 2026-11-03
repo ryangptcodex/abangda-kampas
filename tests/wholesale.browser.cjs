@@ -7,6 +7,8 @@ const {fixture}=require('./helpers/apps-script.cjs');
  const browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',args:['--no-sandbox']});
  try {
   const f=fixture();f.tables.products[1][6]=0;f.tables.products[1][9]=30000;f.tables.products[1][10]=3;
+  if(process.env.NO_PRODUCT_IDS)f.tables.products.forEach(row=>row.splice(0,1));
+  const productKey=f.context.getProducts('','ALL','ALL',1,6).data[0].id_produk;
   const page=await browser.newPage({viewport:{width:390,height:844}});page.setDefaultTimeout(10000);
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.exposeFunction('__shopServer',(method,args)=>{
@@ -20,7 +22,7 @@ const {fixture}=require('./helpers/apps-script.cjs');
   await page.route('http://toko-grosir.test/**',r=>r.fulfill({contentType:'text/html',body:html}));
   await page.goto('http://toko-grosir.test/');
   await page.waitForFunction(()=>document.querySelector('#homeProductsGrid [data-product-id]'));
-  const card=page.locator('#homeProductsGrid [data-product-id="P1"]');
+  const card=page.locator('#homeProductsGrid [data-product-id="'+productKey+'"]');
   assert.equal(/stok|habis|sisa/i.test(await card.innerText()),false);
   assert.match(await card.locator('[data-role="wholesale"]').innerText(),/30\.000.*3/);
   // Home category labels wrap in full, including names containing quotes.

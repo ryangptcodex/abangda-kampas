@@ -444,7 +444,7 @@
     let html = '';
     banners.forEach(function(b) {
       html += '<div class="min-w-full snap-center bg-slate-800 h-36 rounded-2xl overflow-hidden relative shadow-sm">';
-      html += '<img src="' + formatImageUrl(b.url_gambar) + '" onerror="this.onerror=null; this.src=\'https://placehold.co/600x200/f1f5f9/94a3b8?text=Banner+Gagal\';" class="w-full h-full object-cover opacity-90">';
+      html += '<img alt="' + escapeHtml(b.keterangan || 'Banner toko') + '" src="' + formatImageUrl(b.url_gambar) + '" onerror="this.onerror=null; this.src=\'https://placehold.co/600x200/f1f5f9/94a3b8?text=Banner+Gagal\';" class="w-full h-full object-cover opacity-90">';
       html += '</div>';
     });
     slider.innerHTML = html;

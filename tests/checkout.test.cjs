@@ -77,6 +77,24 @@ test('tracking maps reordered columns and hides backend exceptions',()=>{
  f.sheets.orders.getDataRange=()=>{throw Error('PRIVATE BACKEND DETAILS');};
  const failure=f.context.trackOrder(o.orderId);assert.equal(failure.success,false);assert.equal(JSON.stringify(failure).includes('PRIVATE BACKEND DETAILS'),false);
 });
+test('products without ID columns support stable catalog, detail, restore and wholesale checkout',()=>{
+ const f=fixture();f.tables.products[1][9]=30000;f.tables.products[1][10]=3;
+ f.tables.products.forEach(row=>row.splice(0,1));
+ const initial=f.context.getInitialData();assert.equal(initial.success,true);const id=initial.featuredProducts[0].id_produk;
+ assert.match(id,/^P-[a-f0-9]{64}$/);assert.equal(f.context.getProducts('','ALL','ALL',1,6).data[0].id_produk,id);
+ assert.equal(f.context.getProductById(id).success,true);
+ f.tables.products.push(['Lain','Sembako','Brand',100,'','', '', 'TIDAK','','']);
+ f.tables.products.splice(1,0,f.tables.products.pop());
+ assert.equal(f.context.getProductById(id).product.nama,'Beras');
+ const restored=f.context.getCartSnapshot([{id,qty:3}]);assert.equal(restored.success,true);assert.equal(restored.items[0].harga,30000);
+ const payload=f.payload();payload.items=[{id,qty:3}];const order=f.context.createOrder(payload);assert.equal(order.success,true);assert.equal(order.summary.total_harga,90000);
+ f.tables.products.push([...f.tables.products[2]]);assert.equal(f.context.createOrder(payload).success,false);
+});
+test('brands and banner descriptions work without legacy IDs',()=>{
+ const f=fixture();f.tables.brands=[['nama_brand','url_logo'],['Abangda','logo']];f.tables.banners=[['keterangan','url_gambar','link'],['Promo sembako','gambar','tujuan']];
+ for(const name of ['brands','banners'])f.sheets[name]={getLastRow:()=>2,getDataRange:()=>({getDisplayValues:()=>f.tables[name]})};
+ const r=f.context.getInitialData();assert.equal(r.success,true);assert.equal(r.brands[0].nama_brand,'Abangda');assert.equal(r.banners[0].keterangan,'Promo sembako');assert.equal(Object.hasOwn(r.brands[0],'id_brand'),false);
+});
 test('cart snapshot returns current catalog fields and ignores saved display data',()=>{
  const f=fixture();f.tables.products[1][4]=40000;
  const before=JSON.stringify(f.tables);

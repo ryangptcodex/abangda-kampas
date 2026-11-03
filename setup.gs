@@ -434,14 +434,14 @@ function seedCategoriesIfEmpty(sheet) {
 function seedBrandsIfEmpty(sheet) {
   if (sheet && sheet.getLastRow() <= 1) {
     const brands = [
-      ['BRD-001', 'Indofood', 'https://cdn-icons-png.flaticon.com/512/888/888879.png'],
-      ['BRD-002', 'Unilever', 'https://cdn-icons-png.flaticon.com/512/888/888879.png'],
-      ['BRD-003', 'Wings', 'https://cdn-icons-png.flaticon.com/512/888/888879.png'],
-      ['BRD-004', 'Nestle', 'https://cdn-icons-png.flaticon.com/512/888/888879.png'],
-      ['BRD-005', 'Bimoli', 'https://cdn-icons-png.flaticon.com/512/888/888879.png']
+      ['Indofood', 'https://cdn-icons-png.flaticon.com/512/888/888879.png'],
+      ['Unilever', 'https://cdn-icons-png.flaticon.com/512/888/888879.png'],
+      ['Wings', 'https://cdn-icons-png.flaticon.com/512/888/888879.png'],
+      ['Nestle', 'https://cdn-icons-png.flaticon.com/512/888/888879.png'],
+      ['Bimoli', 'https://cdn-icons-png.flaticon.com/512/888/888879.png']
     ];
 
-    sheet.getRange(2, 1, brands.length, 3).setValues(brands);
+    sheet.getRange(2, 1, brands.length, 2).setValues(brands);
   }
 }
 
@@ -449,12 +449,12 @@ function seedBannersIfEmpty(sheet) {
   if (sheet && sheet.getLastRow() <= 1) {
     const banners = [
       [
-        'BNR-001',
+        'Promo belanja harian',
         'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&w=1000&q=80',
         '#'
       ],
       [
-        'BNR-002',
+        'Pilihan sembako',
         'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1000&q=80',
         '#'
       ]
@@ -545,7 +545,6 @@ function seedCouponsIfEmpty(sheet) {
 function databaseSchemas_() {
   return {
     products: [
-      'id_produk',
       'nama',
       'id_kategori',
       'brand',
@@ -561,12 +560,11 @@ function databaseSchemas_() {
       'url_ikon'
     ],
     brands: [
-      'id_brand',
       'nama_brand',
       'url_logo'
     ],
     banners: [
-      'id_banner',
+      'keterangan',
       'url_gambar',
       'link'
     ],
@@ -623,6 +621,21 @@ function updateSheetStructure_() {
         seen[header] = true;
       });
     });
+    const products = ss.getSheetByName('products');
+    if (products && products.getLastRow() > 1) {
+      const rows = products.getDataRange().getDisplayValues();
+      const nameIndex = rows[0].indexOf('nama');
+      const brandIndex = rows[0].indexOf('brand');
+      const seenProducts = new Set();
+      rows.slice(1).forEach(function(row) {
+        const name = nameIndex < 0 ? '' : String(row[nameIndex] || '').trim();
+        if (!name) return;
+        const brand = brandIndex < 0 ? '' : String(row[brandIndex] || '').trim();
+        const key = JSON.stringify([name, brand]);
+        if (seenProducts.has(key)) throw new Error('Nama produk dan brand sama persis: ' + name + '. Bedakan nama produk terlebih dahulu.');
+        seenProducts.add(key);
+      });
+    }
     // Salinan utuh harus berhasil sebelum kolom/data diubah.
     const stamp = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyyMMdd-HHmmss');
     const backup = ss.copy(ss.getName() + ' - Cadangan sebelum pembaruan ' + stamp);
@@ -633,6 +646,12 @@ function updateSheetStructure_() {
       const sheet = ss.getSheetByName(name) || ss.insertSheet(name);
       const count = sheet.getLastColumn();
       const headers = count ? sheet.getRange(1, 1, 1, count).getDisplayValues()[0] : [];
+      // Rename in place so existing banner labels and URLs stay aligned.
+      if (name === 'banners' && !headers.includes('keterangan') && headers.includes('id_banner')) {
+        const index = headers.indexOf('id_banner');
+        sheet.getRange(1, index + 1).setValue('keterangan');
+        headers[index] = 'keterangan';
+      }
       schemas[name].forEach(function(header) {
         if (headers.includes(header)) return;
         if (sheet.getMaxColumns() <= headers.length) sheet.insertColumnAfter(sheet.getMaxColumns());
@@ -640,14 +659,13 @@ function updateSheetStructure_() {
         headers.push(header);
         added++;
       });
-      // Hanya dua kolom usang yang secara khusus sudah tidak dipakai.
-      if (name === 'orders') {
-        for (let i = headers.length - 1; i >= 0; i--) {
-          if (['tracking_token', 'tracking_token_hash'].includes(headers[i])) {
-            sheet.deleteColumns(i + 1, 1);
-            headers.splice(i, 1);
-            removed++;
-          }
+      const obsolete = name === 'orders' ? ['tracking_token', 'tracking_token_hash']
+        : name === 'products' ? ['id_produk'] : name === 'brands' ? ['id_brand'] : name === 'banners' ? ['id_banner'] : [];
+      for (let i = headers.length - 1; i >= 0; i--) {
+        if (obsolete.includes(headers[i])) {
+          sheet.deleteColumns(i + 1, 1);
+          headers.splice(i, 1);
+          removed++;
         }
       }
       formatHeaderRow(sheet, headers.length);
@@ -662,7 +680,7 @@ function updateSheetStructure_() {
     }
     applyProductCategoryValidation_(ss);
     SpreadsheetApp.flush();
-    message = 'Struktur 7 sheet sudah diperbarui.\nKolom ditambahkan: ' + added + '\nKolom token lama dihapus: ' + removed + '\n\nData lama, kolom tambahan, dan pengaturan toko dipertahankan. Tidak ada data contoh yang ditambahkan.';
+    message = 'Struktur 7 sheet sudah diperbarui.\nKolom ditambahkan: ' + added + '\nKolom lama dihapus: ' + removed + '\n\nData lama, kolom tambahan, dan pengaturan toko dipertahankan. Tidak ada data contoh yang ditambahkan.';
   } catch (error) {
     message = 'Pembaruan belum selesai: ' + (error.message || String(error));
     if (backupUrl) message += '\nSebagian perubahan mungkin sudah diterapkan. Gunakan cadangan untuk memeriksa atau memulihkan data.';

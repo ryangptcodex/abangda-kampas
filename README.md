@@ -2,11 +2,23 @@
 
 Aplikasi Google Apps Script yang terhubung ke Google Sheets. Nama toko tetap Toko Abangda.
 
+## Produk dan brand tanpa kolom ID; keterangan banner
+
+Ganti seluruh isi **code.gs** (backend `Kode.gs`), **js.html**, dan **setup.gs** dari repo. Simpan dan uji `/dev`, lalu perbarui deployment `/exec` yang dipakai pelanggan **sebelum** menjalankan migrasi sheet. Backend baru mendukung sheet lama maupun baru. Muat ulang spreadsheet, lalu pilih **Toko Abangda → Perbarui Struktur Sheet**.
+
+Menu membuat cadangan utuh, menghapus `products.id_produk` dan `brands.id_brand`, serta mengganti header `banners.id_banner` menjadi `keterangan` tanpa menghapus nilai pada baris banner. Isi labelnya sendiri, misalnya “Promo sembako” atau “Banner Ramadan”. Jika kedua header banner sudah ada, kolom `keterangan` dipertahankan dan `id_banner` dihapus; nilai lamanya tersedia di cadangan. Menu tetap menghapus token pelacakan lama.
+
+Kolom akhir products: `nama`, `id_kategori`, `brand`, `harga`, `deskripsi`, `url_foto`, `is_unggulan`, `harga_grosir`, `min_beli_grosir`. Kolom brands: `nama_brand`, `url_logo`. Kolom banners: `keterangan`, `url_gambar`, `link`. Urutan aktual mengikuti kolom lama; kolom tambahan lain tetap dipertahankan.
+
+Aplikasi membuat kunci internal otomatis berdasarkan pasangan nama produk dan brand, tanpa kolom ID di spreadsheet. Pasangan tersebut harus unik; varian produk perlu nama berbeda. Pengurutan baris dan perubahan harga tidak mengubah kunci. Mengganti nama atau brand mengubah kunci, sehingga pelanggan perlu memilih ulang item tersebut. Keranjang tersimpan dengan ID lama juga perlu dipilih ulang setelah migrasi; pemulihan keranjang memberi pemberitahuan item tidak tersedia. Pesanan yang sudah tercatat tetap menyimpan rincian lamanya. Nama/brand ganda menghentikan migrasi sebelum perubahan; checkout juga menolak produk ambigu.
+
+Uji tambahan: `NO_PRODUCT_IDS=1 node tests/wholesale.browser.cjs` menjalankan katalog, kuantitas grosir, detail, keranjang persisten, checkout, WhatsApp, dan pelacakan tanpa kolom ID produk.
+
 ## Tombol pembaruan struktur sheet — 3 November 2026
 
 Untuk memasang menu baru, ganti **seluruh isi [setup.gs](setup.gs)** di Apps Script, simpan, lalu muat ulang Google Sheets. Pilih **🛒 Toko Abangda → 🔄 Perbarui Struktur Sheet**. Jika Google meminta otorisasi untuk membuat cadangan, izinkan menggunakan akun pemilik spreadsheet.
 
-Menu ini membuat salinan lengkap spreadsheet terlebih dahulu, lalu memeriksa tujuh sheet (`products`, `categories`, `brands`, `banners`, `orders`, `coupons`, `settings`) terhadap skema yang juga digunakan setup awal. Sheet/kolom wajib yang belum ada ditambahkan. Kolom `tracking_token` dan `tracking_token_hash` di `orders` dihapus karena pelacakan kini menggunakan ID saja. Dropdown kategori produk dan status pesanan diperbarui.
+Menu ini membuat salinan lengkap spreadsheet terlebih dahulu, lalu memeriksa tujuh sheet (`products`, `categories`, `brands`, `banners`, `orders`, `coupons`, `settings`) terhadap skema yang juga digunakan setup awal. Sheet/kolom wajib yang belum ada ditambahkan. Kolom token di `orders` serta ID produk/brand dihapus; ID banner menjadi keterangan sesuai pembaruan di atas. Dropdown kategori produk dan status pesanan diperbarui.
 
 Baris yang ada, rumus, harga, nomor WhatsApp, pengaturan toko, dan kolom tambahan tetap dipertahankan. Kolom lama `stok` tetap diabaikan aplikasi. Tidak ada penyusunan ulang kolom, reset database, penambahan data contoh, atau penghapusan sheet lain. Menu ini memperbarui struktur; isi data dan aturan bisnis tetap mengikuti konfigurasi milik toko.
 
