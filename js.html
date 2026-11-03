@@ -362,7 +362,7 @@
 
         renderStoreSettings(settingsState);
         let contactNotice = document.getElementById('storeContactNotice');
-        if (!contactNotice) { contactNotice = node_('p','text-xs text-slate-600 my-2'); contactNotice.id='storeContactNotice'; document.getElementById('storeHeader').after(contactNotice); }
+        if (!contactNotice) { contactNotice = node_('p','text-xs text-slate-600 my-2'); contactNotice.style.cssText='max-width:448px;margin:8px auto;padding:0 16px;box-sizing:border-box'; contactNotice.id='storeContactNotice'; document.getElementById('storeHeader').after(contactNotice); }
         contactNotice.textContent = settingsState.contactUnavailable ? 'Pemesanan WhatsApp sementara belum tersedia. Katalog tetap dapat dilihat.' : '';
         contactNotice.hidden = !settingsState.contactUnavailable;
         renderBanners(bannersState);
