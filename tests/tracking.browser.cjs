@@ -16,7 +16,7 @@ const { fixture } = require('./helpers/apps-script.cjs');
     await page.route('https://**/*', route => route.abort());
     await page.context().route('https://wa.me/**',r=>r.fulfill({contentType:'text/html',body:'WhatsApp handoff test'}));
   await page.exposeFunction('__testServer', async (method,args) => {
-      assert.ok(['getInitialData','getProducts','getProductById','createOrder','validateCoupon','trackOrder'].includes(method));
+      assert.ok(['getInitialData','getProducts','getProductById','createOrder','validateCoupon','trackOrder','recoverCheckout'].includes(method));
       counts[method] = (counts[method] || 0) + 1;
       const response = JSON.parse(JSON.stringify(f.context[method](...args)));
       if (method === 'trackOrder' && delayNextTracking) {

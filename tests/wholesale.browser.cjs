@@ -13,7 +13,7 @@ const {fixture}=require('./helpers/apps-script.cjs');
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.context().route('https://wa.me/**',r=>r.fulfill({contentType:'text/html',body:'WhatsApp handoff test'}));
   await page.exposeFunction('__shopServer',(method,args)=>{
-   assert.ok(['getInitialData','getProducts','getProductById','getCartSnapshot','validateCoupon','createOrder','trackOrder'].includes(method));
+   assert.ok(['getInitialData','getProducts','getProductById','getCartSnapshot','validateCoupon','createOrder','trackOrder','recoverCheckout'].includes(method));
    return JSON.parse(JSON.stringify(f.context[method](...args)));
   });
   const bridge=`<script>window.finishedRPCs=0;window.google={script:{run:{withSuccessHandler(success){return {withFailureHandler(failure){return new Proxy({}, {get(_,method){return (...args)=>window.__shopServer(method,args).then(success,failure).finally(()=>window.finishedRPCs++);}});}};}}}};</script>`;

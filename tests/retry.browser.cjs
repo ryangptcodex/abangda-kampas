@@ -14,11 +14,12 @@ const {fixture}=require('./helpers/apps-script.cjs');
   await page.locator('#btnSubmitCheckout').click();await page.waitForFunction(()=>!cartCheckoutPending);assert.equal(orderCalls,1);assert.equal(f.tables.orders.length,2);
   const key=await page.evaluate(()=>JSON.parse(localStorage.getItem('tokoAbangda.checkout.v1')).key);assert.match(key,/^[a-f0-9]{64}$/);
   const stored=await page.evaluate(()=>localStorage.getItem('tokoAbangda.checkout.v1'));assert.doesNotMatch(stored,/Pembeli|081234567890|Alamat/);
-  await page.reload();await page.waitForFunction(()=>!cartRestoreRequired&&cartState.length===1);await page.evaluate(()=>switchTab('checkout'));await fill();await page.locator('#btnSubmitCheckout').click();await page.waitForFunction(()=>!cartCheckoutPending);
-  assert.equal(orderCalls,2);assert.equal(f.tables.orders.length,2);assert.equal(f.tables.coupons[1][4],coupon?1:2);
-  if(coupon){await page.locator('#previousCheckoutNotice').waitFor({state:'visible'});assert.match(await page.locator('#previousCheckoutNotice').innerText(),/Pesanan sebelumnya sudah tercatat/);assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('tokoAbangda.checkout.v1')).key),key);}
-  else{await page.locator('#orderHandoffNotice').waitFor({state:'visible'});assert.equal(await page.evaluate(()=>localStorage.getItem('tokoAbangda.checkout.v1')),null);}
+  await page.reload();await page.locator('#orderHandoffNotice').waitFor({state:'visible'});await page.waitForFunction(()=>!cartRestoreRequired&&cartState.length===0);
+  assert.equal(orderCalls,1);assert.equal(f.tables.orders.length,2);assert.equal(f.tables.coupons[1][4],coupon?1:2);
+  assert.equal(await page.evaluate(()=>localStorage.getItem('tokoAbangda.checkout.v1')),null);
+  const receipt=await page.evaluate(()=>JSON.parse(localStorage.getItem('tokoAbangda.receipt.v1')));assert.equal(receipt.key,key);
+  assert.match(decodeURIComponent(await page.locator('#orderWhatsAppLink').getAttribute('href')),coupon?/HEMAT/:/Halo Abangda/);
   assert.deepEqual(errors,[]);await page.close();
  }
- console.log('PASS real backend + browser: response lost after commit, refresh and retry keep one order; changed coupon state shows previous order without duplicate; pending storage excludes customer fields.');
+ console.log('PASS real backend + browser: response lost after commit, refresh recovers the original WhatsApp and clears the committed cart without another checkout; coupon survives in immutable receipt; pending storage excludes customer fields.');
 }finally{await browser.close();}})().catch(e=>{console.error(e);process.exit(1)});

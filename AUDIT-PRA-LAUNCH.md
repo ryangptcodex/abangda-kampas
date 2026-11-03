@@ -4,6 +4,12 @@ Tanggal: 3 November 2026, Asia/Jakarta. Versi aplikasi yang diaudit: `cb06084` (
 
 **Penilaian: alur utama layak dilanjutkan ke uji terbatas; belum dapat dinyatakan siap launch publik penuh.** Ada beberapa sisa masalah yang berhasil direproduksi dan ada pemeriksaan produksi yang belum bisa dilakukan. Audit ini tidak mengubah kode aplikasi, deployment, atau sheet asli.
 
+## Status setelah paket penyelesaian audit
+
+Temuan kode pada laporan ini telah ditangani: batas order baru sesudah validasi, satuan konsisten, settings/WA bersama dan duplikat ditolak, referensi order acak satu input, refund kuota satu kali, tracking lengkap, menu ongkir/pembayaran dan riwayat, pemulihan receipt WA, read guard tanpa antrean transaksi, lookup arsip per kolom/baris, kunci produk sistem tersembunyi yang tetap saat rename, batas jumlah UI, serta checker/proteksi peringatan tujuh sheet. Jurnal pemulihan mencakup checkout, pembatalan dan kesepakatan total yang terputus. Rincian pemasangan dan keterbatasan ada di [README](README.md).
+
+Bagian temuan di bawah adalah rekaman kondisi **sebelum** paket tersebut. Pemeriksaan data/izin sheet asli, WhatsApp pada perangkat nyata, latency/kapasitas produksi, serta domain/DNS tetap belum terverifikasi; hasil simulasi tidak menggantikannya. Pembatasan cache bukan anti-DDoS, proteksi sheet berupa peringatan bukan perubahan izin, dan rekonsiliasi pengelola tetap dibutuhkan jika layanan atau pengeditan manual membuat hasil transaksi ambigu.
+
 ## Cakupan dan bukti
 
 - Membaca kode HTML/JavaScript, backend Apps Script, migrasi dan skema tujuh sheet.

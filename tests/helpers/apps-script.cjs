@@ -30,7 +30,7 @@ function fixture(options = {}) {
   };
   const sheets = Object.fromEntries(Object.entries(tables).map(([name, rows]) => [name, {
     getLastRow: () => rows.length, getLastColumn: () => rows[0].length,
-    getMaxColumns: () => rows[0].length,
+    getMaxColumns: () => rows[0].length, getMaxRows:()=>1000, hideColumns(){},
     insertColumnAfter() {},
     getName: () => name,
     getActiveRange: () => ({getRow: () => options.selectedRow || 2, getNumRows: () => options.selectedCount || 1}),
@@ -39,6 +39,7 @@ function fixture(options = {}) {
       getDisplayValues: () => rows.map((r,i) => r.map((v,j) => name === 'products' && i > 0 && j === 4 ? 'Rp34.500' : name === 'orders' && i > 0 && rows[0][j] === 'total_harga' ? 'Rp' + Number(v).toLocaleString('id-ID') : String(v == null ? '' : v).replace(/^'/,'')))
     }; },
     getRange(row, col, nr=1, nc=1) { return {
+      getValues: () => Array.from({length:nr},(_,i)=>Array.from({length:nc},(_,j)=>rows[row-1+i]?.[col-1+j]??'')),
       getDisplayValue: () => String(rows[row-1][col-1] == null ? '' : rows[row-1][col-1]),
       getDisplayValues: () => rows.slice(row-1, row-1+nr).map(r => r.slice(col-1,col-1+nc).map(String)),
       setValue(value) { rows[row-1][col-1] = value; },
@@ -47,12 +48,13 @@ function fixture(options = {}) {
     appendRow(row) { if (options.failAppend) throw Error('Gagal menulis order'); rows.push([...row]); }
   }]));
   const ss = { getSheetByName: name => sheets[name] || null, getActiveSheet: () => sheets[options.activeSheet || 'orders'] };
+  Object.values(sheets).forEach(sheet=>sheet.getParent=()=>ss);
   const context = {
     console,
     CacheService:{getScriptCache:()=>({get:key=>{const entry=cache.get(key);return entry&&entry.expiry>Date.now()?entry.value:null;},put(key,value,ttl){cache.set(key,{value,expiry:Date.now()+ttl*1000});},remove(key){cache.delete(key);}})},
     SpreadsheetApp: {getActiveSpreadsheet: () => ss, getUi: () => ui, flush() {}},
     LockService: {getScriptLock: () => ({tryLock(ms) { attempts++; assert.equal(ms,15000); if (options.busy) return false; activeLocks++;return true; }, releaseLock(){activeLocks--;releases++;}})},
-    PropertiesService: {getScriptProperties: () => ({getProperty:k=>properties[k]||null,setProperty(k,v){properties[k]=v;}})},
+    PropertiesService: {getScriptProperties: () => ({getProperty:k=>properties[k]||null,setProperty(k,v){properties[k]=v;},deleteProperty(k){delete properties[k];}})},
     Utilities: {getUuid: () => crypto.randomUUID(), DigestAlgorithm:{SHA_256:'SHA_256'}, Charset:{UTF_8:'UTF_8'}, computeDigest: (_, text) => [...crypto.createHash('sha256').update(text, 'utf8').digest()], formatDate: (_,zone,format) => {assert.equal(zone,'Asia/Jakarta');return format==='yyyyMMdd'?'20261025':'25/10/2026 10:00:00';}}
   };
   vm.createContext(context);

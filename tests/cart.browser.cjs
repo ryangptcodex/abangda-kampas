@@ -26,7 +26,7 @@ const KEY = 'tokoAbangda.cart.v1';
       await ctx.route('https://**/*',r=>r.abort());
       await ctx.route('http://toko-abangda.test/**',r=>r.fulfill({contentType:'text/html',body:html}));
       await ctx.exposeBinding('__cartServer',async(_,method,args)=>{
-        assert.ok(['getInitialData','getProducts','getCartSnapshot','getProductById','createOrder','validateCoupon','trackOrder'].includes(method));
+        assert.ok(['getInitialData','getProducts','getCartSnapshot','getProductById','createOrder','validateCoupon','trackOrder','recoverCheckout'].includes(method));
         counts[method]=(counts[method]||0)+1;
         if(method==='getCartSnapshot' && flags.failSnapshot) throw Error('Uji koneksi terputus');
         if(method==='createOrder' && flags.failOrder) return {success:false,message:'Uji order ditolak'};

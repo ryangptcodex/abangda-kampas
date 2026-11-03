@@ -74,7 +74,7 @@ test('legacy orders with or without a hash track without modifying stored data',
 test('tracking maps reordered columns and hides backend exceptions',()=>{
  const f=fixture();f.tables.orders[0].reverse();const o=f.context.createOrder(f.payload());
  const r=f.context.trackOrder(o.orderId);assert.equal(r.success,true);assert.equal(r.order.total_harga,69000);
- f.sheets.orders.getDataRange=()=>{throw Error('PRIVATE BACKEND DETAILS');};
+ f.sheets.orders.getRange=()=>{throw Error('PRIVATE BACKEND DETAILS');};
  const failure=f.context.trackOrder(o.orderId);assert.equal(failure.success,false);assert.equal(JSON.stringify(failure).includes('PRIVATE BACKEND DETAILS'),false);
 });
 test('products without ID columns support stable catalog, detail, restore and wholesale checkout',()=>{
@@ -162,7 +162,7 @@ test('cart snapshot returns current catalog fields and ignores saved display dat
  const before=JSON.stringify(f.tables);
  const r=f.context.getCartSnapshot([{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:2,harga:1,nama:'Forged',maxStock:9999}]);
  assert.equal(r.success,true);assert.equal(r.items[0].harga,40000);assert.equal(r.items[0].nama,'Beras');assert.equal(Object.hasOwn(r.items[0],'maxStock'),false);
- assert.equal(JSON.stringify(f.tables),before);assert.equal(f.attempts(),1);
+ assert.equal(JSON.stringify(f.tables),before);assert.equal(f.attempts(),0);
 });
 test('cart snapshot preserves quantities irrespective of legacy stock',()=>{
  const f=fixture();f.tables.products[1][6]=3;

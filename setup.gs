@@ -9,6 +9,12 @@ function onOpen(e) {
     .addItem('🔄 Perbarui Struktur Sheet', 'updateSheetStructure_')
     .addItem('💰 Siapkan Kolom Harga Grosir', 'prepareWholesaleColumns_')
     .addItem('🔎 Periksa Data Produk', 'checkProductData_')
+    .addItem('🩺 Periksa Seluruh Data', 'checkAllData_')
+    .addItem('❌ Batalkan Pesanan Terpilih', 'cancelSelectedOrder_')
+    .addItem('💳 Atur Ongkir & Pembayaran', 'setSelectedOrderAgreement_')
+    .addItem('💸 Catat Dana Dikembalikan', 'markSelectedMoneyReturned_')
+    .addItem('🛠️ Pulihkan Transaksi Tertunda', 'repairPendingOperations_')
+    .addItem('📋 Riwayat Pesanan Terpilih', 'showSelectedOrderHistory_')
     .addSeparator()
     .addItem('📦 Buka Produk', 'openProductsSheet')
     .addItem('🗂️ Buka Kategori', 'openCategoriesSheet')
@@ -549,7 +555,8 @@ function databaseSchemas_() {
       'is_unggulan',
       'harga_grosir',
       'min_beli_grosir',
-      'satuan'
+      'satuan',
+      '_kunci_produk'
     ],
     categories: [
       'nama',
@@ -574,7 +581,7 @@ function databaseSchemas_() {
       'tipe_pengiriman',
       'detail_produk',
       'total_harga',
-      'status', 'request_id', 'request_hash', 'checkout_summary', 'wa_target', 'subtotal', 'diskon', 'kode_kupon'
+      'status', 'request_id', 'request_hash', 'checkout_summary', 'wa_target', 'subtotal', 'diskon', 'kode_kupon', 'coupon_debited', 'coupon_refunded', 'ongkir', 'total_final', 'status_pembayaran', 'dibayar_pada', 'riwayat_status', 'agreement_state'
     ],
     coupons: [
       'kode_kupon',
@@ -673,6 +680,8 @@ function updateSheetStructure_() {
       if (actualHeaders.some(function(header) { return obsolete.includes(header); })) throw new Error('Kolom lama pada ' + name + ' belum terhapus.');
       formatHeaderRow(sheet, headers.length);
     });
+    initializeProductKeys_(ss);
+    applySystemProtections_(ss);
     const orders = ss.getSheetByName('orders');
     const headers = orders.getRange(1, 1, 1, orders.getLastColumn()).getDisplayValues()[0];
     if (orders.getMaxRows() > 1) {
@@ -711,4 +720,60 @@ function normalizeDatabaseHeader_(header) {
     databaseSchemas_()[name].forEach(function(field) { if (!known.includes(field)) known.push(field); });
   });
   return known.includes(candidate) ? candidate : original;
+}
+
+function initializeProductKeys_(ss, editedRange) {
+  const sheet=ss.getSheetByName('products');if(!sheet||sheet.getLastRow()<2)return;
+  const rows=sheet.getDataRange().getValues(),headers=rows[0],index=headers.indexOf('_kunci_produk');if(index<0)return;
+  const counts=new Map();rows.slice(1).forEach(function(row){const key=String(row[index]||'');if(key)counts.set(key,(counts.get(key)||0)+1);});
+  rows.slice(1).forEach(function(row,i){
+    const nameIndex=headers.indexOf('nama');
+    if(nameIndex<0||!String(row[nameIndex]??'').trim()){
+      if(editedRange&&row.every((value,j)=>j===index||value==null||String(value).trim()===''))sheet.getRange(i+2,index+1).setValue('');
+      return;
+    }
+    const key=String(row[index]||'');
+    const edited=editedRange&&i+2>=editedRange.getRow()&&i+2<editedRange.getRow()+editedRange.getNumRows();
+    if(!key||edited&&counts.get(key)>1){
+      const next=editedRange?'P-'+sha256_(Utilities.getUuid()):legacyProductKey_(row,headers);
+      sheet.getRange(i+2,index+1).setValue(next);if(key)counts.set(key,counts.get(key)-1);
+    }
+  });
+  sheet.hideColumns(index+1);
+}
+
+function applySystemProtections_(ss) {
+  Object.keys(databaseSchemas_()).forEach(function(name){
+    const sheet=ss.getSheetByName(name);if(!sheet||!sheet.getLastColumn())return;
+    // Warnings preserve existing sharing/editor permissions, while discouraging accidental edits.
+    const existing=sheet.getProtections(SpreadsheetApp.ProtectionType.RANGE);
+    const protect=function(range,label){const description='Toko Abangda: '+label;const found=existing.find(function(p){return p.getDescription()===description;});if(found){found.setRange(range);found.setWarningOnly(true);return;}range.protect().setDescription(description).setWarningOnly(true);};
+    protect(sheet.getRange(1,1,1,sheet.getLastColumn()),'header '+name);
+    const headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getDisplayValues()[0];
+    const fields=name==='products'?['_kunci_produk']:name==='orders'?['request_id','request_hash','checkout_summary','wa_target','coupon_debited','coupon_refunded','riwayat_status','agreement_state','ongkir','total_final','status_pembayaran','dibayar_pada']:[];
+    fields.forEach(function(field){const i=headers.indexOf(field);if(i<0)return;if(['_kunci_produk','request_id','request_hash','checkout_summary','wa_target','coupon_debited','coupon_refunded','riwayat_status','agreement_state'].includes(field))sheet.hideColumns(i+1);if(sheet.getMaxRows()>1)protect(sheet.getRange(2,i+1,sheet.getMaxRows()-1,1),name+'.'+field);});
+  });
+}
+
+function onEdit(e) {
+  if(!e||!e.range)return;
+  try{
+    const sheet=e.range.getSheet(),ss=sheet.getParent();
+    if(sheet.getName()==='products'){
+      const lock=LockService.getScriptLock();if(!lock.tryLock(15000))return;
+      try{initializeProductKeys_(ss,e.range);}finally{lock.releaseLock();}return;
+    }
+    if(sheet.getName()!=='orders'||e.range.getRow()<2)return;
+    const headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getDisplayValues()[0],statusCol=headers.indexOf('status')+1;
+    if(e.range.getColumn()!==statusCol||e.range.getNumColumns()!==1)return;
+    for(let offset=0;offset<e.range.getNumRows();offset++){
+      const row=e.range.getRow()+offset,id=String(sheet.getRange(row,headers.indexOf('id_pesanan')+1).getValues()[0][0]);
+      const found=findOrderRow_(sheet,'id_pesanan',id);if(!found)continue;
+      if(String(orderValue_(found,'status'))==='Pesanan Dibatalkan'){cancelOrderById_(id);continue;}
+      let cancelledBefore=e.oldValue==='Pesanan Dibatalkan';try{cancelledBefore=cancelledBefore||JSON.parse(orderValue_(found,'riwayat_status')||'[]').some(item=>item.key==='cancel:'+id);}catch(_){}
+      if(cancelledBefore||Number(orderValue_(found,'coupon_refunded'))===1){sheet.getRange(row,statusCol).setValue('Pesanan Dibatalkan');ss.toast('Pesanan yang sudah dibatalkan tidak dapat diaktifkan ulang. Buat pesanan baru.');continue;}
+      const lock=LockService.getScriptLock();if(!lock.tryLock(15000))throw new Error('Riwayat belum tercatat. Coba kembali lewat menu pesanan.');
+      try{ensureOrderColumns_(sheet);const current=findOrderRow_(sheet,'id_pesanan',id);appendOrderEvent_(sheet,current,{at:orderTime_(),status:String(orderValue_(current,'status')),event:'Status diubah pengelola'});}finally{lock.releaseLock();}
+    }
+  }catch(error){try{e.source.toast('Perubahan perlu diperiksa: '+error.message);}catch(_){} }
 }

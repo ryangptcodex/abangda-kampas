@@ -1,135 +1,107 @@
 # Toko Abangda
 
-Katalog dan pemesanan Google Apps Script + Google Sheets. Stok dan pembayaran dikonfirmasi pemilik toko melalui WhatsApp. Nama tetap **Toko Abangda**.
+Webapp katalog Google Apps Script + Google Sheets. Stok, ongkir, pembayaran, dan pengembalian uang dikonfirmasi pemilik toko secara manual melalui WhatsApp. Nama toko tetap **Toko Abangda**.
 
-## Memasang paket perbaikan wajib
+## Memasang paket penyelesaian pra-launch
 
-Ganti **kelima file lengkap** dari versi yang sama. Gunakan **Copy raw file** di GitHub; jangan menyalin pratinjau yang terpotong atau nomor baris.
+Ganti **kelima file lengkap** dari versi yang sama melalui tombol **Copy raw file** di GitHub. Jangan membuat backend kedua atau menyalin pratinjau yang terpotong.
 
-| GitHub | File di editor Apps Script |
+| GitHub | Tujuan di Apps Script |
 | --- | --- |
-| [code.gs](code.gs) | `Kode.gs` / backend yang sudah ada, jangan buat duplikat |
+| [code.gs](code.gs) | `Kode.gs` / backend yang sudah ada |
 | [js.html](js.html) | `js.html` |
 | [index.html](index.html) | `index.html` |
-| [css.html](css.html) | `css.html` — sekarang wajib, berisi CSS produksi lengkap |
+| [css.html](css.html) | `css.html`, CSS produksi yang sudah dibuild |
 | [setup.gs](setup.gs) | `setup.gs` |
 
-1. Simpan semuanya saat tidak ada transaksi aktif. Paket lama tanpa request ID tidak kompatibel dengan checkout baru; pelanggan yang masih membuka halaman lama perlu refresh.
-2. Refresh Google Sheets → **🛒 Toko Abangda → 🔄 Perbarui Struktur Sheet**. Menu membuat cadangan lengkap sebelum perubahan. Izinkan otorisasi pembuatan salinan bila Google memintanya.
-3. Jalankan **🔎 Periksa Data Produk** untuk melihat nomor baris produk yang harus dirapikan. Isi nomor WhatsApp toko pada `settings.no_whatsapp`; nomor kosong/tidak valid kini menolak checkout dan tidak memakai nomor fallback.
-4. Uji melalui `/dev`: katalog, kategori, pencarian, grosir, keranjang, kupon, checkout, WhatsApp, dan tracking.
-5. Setelah benar, perbarui deployment publik `/exec` ke versi baru. Uji `/exec` dalam mode samaran tanpa login. `/dev` bukan tautan pelanggan.
+1. Simpan seluruh file. Gunakan waktu sepi untuk pemasangan/migrasi.
+2. Refresh Google Sheets desktop → **🛒 Toko Abangda → 🔄 Perbarui Struktur Sheet**. Cadangan lengkap dibuat sebelum perubahan. Jangan menjalankan initializer lama untuk memperbarui data yang sudah ada.
+3. Jalankan **🩺 Periksa Seluruh Data**. Perbaiki baris yang ditunjukkan: nomor WA, duplikat, kategori/brand, harga/grosir, satuan, dan URL. Aplikasi tidak menebak nilai mana yang benar pada data yang ambigu.
+4. Uji `/dev`, kemudian perbarui deployment publik `/exec` ke versi baru dan refresh webapp. Pelanggan yang masih membuka versi lama perlu refresh.
+5. Uji `/exec` tanpa login Google dan pada Android/iPhone sebelum promosi publik. Jangan membuat sharing spreadsheet publik untuk memungkinkan akses webapp.
 
-Asisten belum dapat mengakses spreadsheet/deployment asli. Semua validasi yang dilaporkan dari repo memakai layanan Apps Script/Sheets tiruan dan Chromium. Jangan menganggap pemasangan kode otomatis berarti sheet sudah dimigrasikan atau deployment sudah diperbarui.
+Asisten belum memiliki akses ke sheet/deployment asli. Tes repo menggunakan layanan Google tiruan dan Chromium, bukan penulisan ke sheet pengguna. Kode sudah dapat dipasang; migrasi, izin, foto asli, WhatsApp pada HP, dan domain tetap harus diverifikasi pada lingkungan sebenarnya.
 
-## Langsung membuka WhatsApp tanpa halaman konfirmasi
+## Masalah audit yang diselesaikan
 
-Ganti seluruh isi **js.html** dan **index.html**, simpan, lalu perbarui deployment `/exec`. File backend, setup, dan CSS tidak berubah pada revisi alur ini. Halaman Pesanan Tercatat/konfirmasi sudah dihapus.
-
-Saat pelanggan menekan Lanjut ke WhatsApp, aplikasi menyiapkan tab pada klik tersebut, mencatat pesanan, kemudian mengarahkan tab ke URL `wa.me` dari hasil server. Menyiapkan tab pada klik diperlukan agar browser tidak menganggap navigasi sebagai popup tanpa tindakan pengguna ketika respons server baru tiba. Aplikasi WhatsApp atau WhatsApp Web dibuka sesuai perangkat dan pengaturan tautan; browser/OS tetap dapat menampilkan pilihan membuka aplikasi. Pesan tidak dikirim otomatis: pelanggan tetap menekan Kirim di WhatsApp.
-
-Jika server gagal, tab persiapan ditutup dan keranjang serta kunci retry dipertahankan. Jika popup diblokir/ditutup pengguna, muncul tautan kecil Buka WhatsApp dengan ID pesanan pada halaman aplikasi; tautan ini memakai pesanan yang sudah tercatat dan tidak membuat order kedua. Setelah berhasil, halaman aplikasi kembali ke beranda, bukan halaman konfirmasi. ID tetap disimpan untuk tracking; rincian pribadi tidak ditambahkan ke localStorage.
-
-Uji `tests/handoff.browser.cjs` memakai tab Chromium nyata dengan tujuan WhatsApp tiruan: tab dibuat sebelum server menyelesaikan order, navigasi terjadi sesudah pencatatan, popup gagal memiliki fallback tanpa order tambahan, dan kegagalan checkout menutup tab sambil mempertahankan keranjang. Pembukaan aplikasi WhatsApp asli dan aturan popup iframe Apps Script pada perangkat pelanggan tetap perlu diuji pada deployment `/exec`.
-
-## Format pesan WhatsApp
-
-Untuk pembaruan format, ganti seluruh isi **code.gs/Kode.gs** dan **setup.gs**, simpan, lalu perbarui deployment `/exec`. Muat ulang spreadsheet → **Perbarui Struktur Sheet** untuk menambahkan kolom opsional `satuan` pada products. Isi `box` untuk produk yang dijual per box, `botol`, `kg`, atau satuan lain; kosong berarti `pcs`. Kolom ini tidak mengubah harga atau kuantitas: harga harus tetap merupakan harga per satuan yang dijual. Rincian pesanan baru menyimpan satuan pada snapshot agar retry tidak berubah ketika data produk diedit.
-
-Pesan dimulai “👋🏻 Halo Abangda...”, berisi ID/tanggal/petunjuk menyimpan ID, nama, nomor WhatsApp, pengiriman “Diantar” atau “Ambil Sendiri”, alamat bila diantar, catatan, dan rincian `nama x jumlah satuan = Rp subtotal`. Brand ditampilkan bila belum tercantum dalam nama produk agar varian tidak tertukar. Subtotal, diskon bila ada, dan total berasal dari server. Penutup meminta konfirmasi stok/ongkir/total/pembayaran dan mengucapkan “Terima kasih Abangda!”. Tebal memakai satu `*` dan miring satu `_` sesuai format WhatsApp, tanpa backslash.
-
-## Voucher lambat — perbaikan terbaru
-
-Untuk pembaruan khusus ini, ganti seluruh isi `code.gs`/`Kode.gs` dan `js.html`, simpan, lalu perbarui deployment `/exec`. Struktur sheet dan file CSS tidak berubah.
-
-Pemeriksaan awal voucher tidak lagi mengambil ScriptLock transaksi yang bisa menunggu 15 detik. Endpoint preview memakai penghitung cache nonblocking dengan batas 120/menit; penghitung preview ini best-effort dan bisa meleset saat permintaan serentak. Batas checkout dan pesanan tetap memakai lock. Aturan satu kupon di-cache server maksimal 30 detik (kode tidak ditemukan 5 detik) dan dihitung kembali terhadap subtotal. Hasil sukses juga bisa dipakai ulang pada halaman yang sama selama 30 detik tanpa panggilan server tambahan; mengubah isi sheet bisa belum terlihat pada preview sampai cache berakhir.
-
-Checkout **selalu** membaca status/kuota/nilai kupon dari sheet terbaru, tanpa memakai cache preview. Kupon yang sudah tidak aktif tetap ditolak saat pesanan dibuat. Cache server kupon terkait dihapus setelah checkout sukses. Tombol voucher menampilkan status pemeriksaan dan memberi kesempatan mencoba ulang setelah 12 detik; ini hanya batas tunggu UI dan tidak membatalkan eksekusi Google. Respons terlambat atau untuk kode yang sudah diganti/dihapus diabaikan. Checkout ditahan selama pemeriksaan voucher masih aktif agar pesanan tidak terkirim tanpa diskon yang sedang diperiksa.
-
-Panggilan pertama masih dipengaruhi startup Apps Script dan jaringan; belum ada pengukuran latensi deployment asli. Pengujian tambahan membuktikan tidak ada penantian ScriptLock pada preview, cache mengurangi pembacaan sheet, dan validasi checkout tetap memakai data terbaru.
-
-## Enam perbaikan wajib
-
-### 1. Checkout tahan retry
-
-Browser membuat satu kunci permintaan acak per percobaan checkout dan menyimpan **kuncinya saja**, tanpa nama/WA/alamat. Kunci dipertahankan bila koneksi gagal, halaman di-refresh, atau formulir berubah sebelum hasil sebelumnya diketahui.
-
-Server memakai ScriptLock, menyimpan kunci dan hash payload bersama baris pesanan, dan mengembalikan hasil yang sama untuk retry payload yang sama. Harga atau konfigurasi kupon yang sudah berubah tidak mengubah pesanan yang sudah tercatat. Penggunaan kupon tidak diulang. Bila append telah berhasil tetapi pemanggilan melempar error, server mencoba menemukan baris yang sudah tersimpan sebelum memulihkan kuota.
-
-Jika kunci yang sama dipakai untuk data berbeda setelah pesanan tercatat, server menolak perubahan dan memberi ID pesanan sebelumnya. Halaman menyediakan **Lacak pesanan sebelumnya** dan **Mulai pesanan baru**. Pilihan kedua secara eksplisit mengawali permintaan baru; bukan pengiriman ulang otomatis.
-
-Kolom sistem pada `orders`: `request_id`, `request_hash`, `checkout_summary`, `wa_target`, `subtotal`, `diskon`, `kode_kupon`. Menu migrasi dan checkout menambahkan yang belum ada; jangan mengubah atau menghapus nilainya. Ini **bukan kolom ID produk atau kode pelacakan pribadi**. Snapshot dipakai untuk mengembalikan konfirmasi/WhatsApp yang sama. Data kontak sudah berada pada sheet orders; akses sheet dan cadangannya harus dibatasi untuk pengelola.
-
-ID pesanan dicek terhadap baris yang sudah ada, sehingga reset counter tidak memakai ulang nomor lama. Pembatasan ukuran rincian juga diperiksa sebelum menulis.
-
-Batas: Google Sheets tidak menyediakan transaksi atomik lintas sheet. Hard timeout/pemadaman saat commit beberapa penulisan tetap memerlukan rekonsiliasi pemilik toko. Penghapusan baris pesanan/metadata secara manual menghilangkan bukti retry. Jika browser menolak storage, kunci hanya bertahan selama sesi halaman tersebut; tampilkan/uji pemberitahuan penyimpanan pada perangkat pelanggan.
-
-### 2. Respons katalog/pencarian terbaru yang berlaku
-
-Nomor versi permintaan mencegah kategori atau saran lama menimpa pilihan terbaru. Permintaan filter baru tidak lagi dibuang saat permintaan sebelumnya berjalan. Halaman append yang gagal dikembalikan agar dapat dicoba ulang. Menutup modal membatalkan penerapan respons detail yang terlambat.
-
-### 3. Teks dan tautan ditangani aman
-
-Keranjang, ringkasan checkout, brand, banner, dan saran pencarian menggunakan elemen DOM dan `textContent` untuk data sheet. Tombol memakai event handler terikat, bukan menyisipkan nama ke string JavaScript. Kartu produk dan respons tracking yang masih memakai template HTML melakukan escaping pada nilai dinamis.
-
-URL gambar/media sosial/banner harus berupa HTTP(S) absolut, tanpa username/password, dan dinormalisasi ke HTTPS. Skema `javascript:`/`data:` ditolak. URL Drive diproses berdasarkan hostname yang sesuai. Tautan banner yang valid sekarang dapat diklik; nama keterangannya menjadi teks alternatif gambar.
-
-### 4. Data produk bermasalah disisihkan
-
-Pembacaan katalog memakai nilai asli Sheets dan hanya satu pengambilan data per fungsi katalog, bukan membacanya dua kali. Baris benar-benar kosong diabaikan. Harga/grosir tidak valid atau pasangan nama+brand duplikat membuat produk tersebut tidak ditampilkan, tanpa memberi harga nol atau memblokir produk lain yang valid.
-
-Pengunjung mendapat pemberitahuan bahwa sebagian produk sementara tidak tersedia. Menu privat **Periksa Data Produk** menunjukkan nomor baris dan alasannya untuk admin. Item bermasalah yang sudah tersimpan di keranjang tetap membutuhkan penyelesaian/retry/discard; tidak dipadankan secara diam-diam ke produk lain.
-
-### 5. Pembatasan permintaan di server
-
-Penghitung checkout/katalog/tracking menggunakan Script Cache dengan ScriptLock untuk pembaruan counter. Preview kupon memakai cache nonblocking sebagaimana dijelaskan di atas. Nilai awal di `PUBLIC_LIMITS`:
-
-| Aktivitas | Batas awal |
+| Temuan | Perilaku sekarang |
 | --- | --- |
-| Katalog/initial/detail/pemulihan keranjang, digabung untuk seluruh aplikasi | 600 per menit |
-| Pelacakan | 120 per menit |
-| Pemeriksaan kupon | 120 per menit |
-| Percobaan checkout, termasuk retry | 120 per menit |
-| Pesanan baru, seluruh aplikasi | 60 per 10 menit |
-| Pesanan baru per nomor pembeli | 5 per 10 menit |
+| Checkout gagal menghabiskan batas pesanan pembeli | Validasi produk, kupon, nomor toko dan ukuran payload selesai sebelum batas order baru/nomor dipakai. Batas percobaan umum tetap ada. |
+| Satuan box ditampilkan sebagai pcs | Satuan diteruskan ke kartu harga, minimum grosir, modal, keranjang/pemulihan, WhatsApp dan tracking. |
+| Nomor WA footer berbeda dengan checkout | Satu pembacaan settings dan normalisasi nomor; `08...` menjadi `628...`; kunci publik ganda ditolak. Kode kupon ganda juga ditolak, bukan memakai baris pertama diam-diam. |
+| Nomor tracking mudah ditebak | Order baru memakai ID acak `TA-` + 20 karakter heksadesimal. Tracking tetap satu input, tanpa kode pribadi tambahan. ID lama masih dapat melihat status, tetapi rincian belanja lama tidak dibuka melalui nomor berurutan. |
+| Pembatalan tidak mengembalikan kuota | Menu pembatalan dan perubahan dropdown status memakai proses refund kuota satu kali dengan jurnal pemulihan. |
+| Tracking tidak menjelaskan hitungan | Menampilkan satuan, subtotal, diskon, total produk, ongkir/total akhir yang sudah disepakati, dan status pembayaran. Tidak mengirim nama/telepon/alamat/catatan atau metadata request. |
+| Total final/payment bercampur dengan harga awal | Field operasional terpisah; snapshot checkout dan total produk awal tetap dipertahankan. |
+| Katalog ikut mengantre pada lock transaksi | Budget baca memakai cache tanpa menunggu lock checkout; ada tombol coba muat ulang jika gagal. Batas baca tetap bersifat best-effort. |
+| Tautan WA hilang setelah refresh | Browser menyimpan bukti request acak, bukan pesan atau data kontak. Server memulihkan pesan pesanan terakhir tanpa order baru. |
+| Arsip orders dibaca penuh berulang | Lookup membaca kolom ID/request dan satu baris yang cocok, bukan seluruh JSON arsip order. |
+| Nama/brand diedit membuat identitas produk berubah | Kunci otomatis disimpan pada kolom sistem tersembunyi; identitas tetap saat nama, brand, harga, atau urutan seluruh baris berubah. |
+| Batas jumlah UI tidak sama dengan server | UI dan server sama-sama membatasi 10.000 unit per produk; ini batas aplikasi, bukan stok. |
+| Pemeriksaan hanya mencakup produk | Menu Periksa Seluruh Data mencakup tujuh sheet; header/kolom sistem mendapat proteksi berupa peringatan edit. |
 
-Retry pesanan yang telah tercatat tidak dihitung lagi sebagai pesanan baru, tetapi masih dihitung sebagai percobaan checkout. Batas pesanan baru juga menghitung permintaan baru yang gagal setelah validasi awal; ini sengaja membatasi percobaan berulang, bukan statistik jumlah transaksi berhasil. Nomor dipakai sebagai hash pada kunci cache. Jumlah checkout dibatasi maksimal 100 jenis barang dan 10.000 unit per produk; ini batas aplikasi, bukan stok toko. Pagination dibatasi 1–100 produk per permintaan.
+[AUDIT-PRA-LAUNCH.md](AUDIT-PRA-LAUNCH.md) mempertahankan temuan sebelum paket ini dengan catatan status penyelesaiannya. Tidak ada klaim bahwa batas platform, DDoS, atau kesalahan manual pengelola sudah dapat dihilangkan sepenuhnya.
 
-Ini **pengendalian aplikasi dasar, bukan perlindungan DDoS/CAPTCHA**. Cache Google dapat dieviksikan, bucket waktu dapat menerima burst di batas periode, nomor pembeli belum diverifikasi, dan permintaan tetap masuk ke Apps Script sebelum ditolak. Batas global harus disesuaikan dengan trafik nyata; jangan menjanjikan kapasitas tertentu sebelum diukur. Pelacakan berlebihan mendapat penolakan umum agar tidak membocorkan informasi lain.
+## Menu pengelola pesanan
 
-### 6. CSS utama disertakan langsung
+Pilih satu baris pada `orders`, lalu gunakan menu **Toko Abangda**:
 
-`index.html` meng-include `css.html`. Tailwind sudah dibuild menjadi CSS statis; tidak ada pemuatan `cdn.tailwindcss.com` atau compiler Tailwind di browser. Class dari markup dan JavaScript disertakan dalam build. Pengujian browser kini memakai **css.html produksi**, bukan fixture terpisah, dengan akses eksternal diblokir.
+| Menu | Fungsi |
+| --- | --- |
+| **Batalkan Pesanan Terpilih** | Membatalkan dan mengembalikan kuota voucher yang terbukti terpakai tepat satu kali. Menjalankan ulang tidak menambah kuota lagi. |
+| **Atur Ongkir & Pembayaran** | Masukkan ongkir angka rupiah tanpa titik/Rp dan pilih `LUNAS` atau `BELUM BAYAR`. Total akhir dihitung dari total produk + ongkir. Ambil sendiri memakai ongkir 0. |
+| **Catat Dana Dikembalikan** | Setelah uang benar-benar dikembalikan manual, tandai pengembaliannya. Aplikasi tidak melakukan transfer uang. |
+| **Pulihkan Transaksi Tertunda** | Melanjutkan jurnal checkout, pembatalan, atau kesepakatan yang belum selesai. |
+| **Riwayat Pesanan Terpilih** | Melihat pencatatan status, kesepakatan total, pembatalan dan konfirmasi pengembalian dana. |
+| **Periksa Seluruh Data** | Melaporkan duplikat, relasi/data yang belum cocok dan transaksi yang perlu diperiksa. Tidak menghapus atau menggabungkan data secara otomatis. |
 
-Google Fonts, Font Awesome, dan foto tetap sumber eksternal. Jika font gagal, teks memakai font sistem; ikon/foto belum dapat dijamin tanpa koneksi. Zoom browser sekarang diizinkan untuk keterbacaan.
+Mengubah dropdown status menjadi **Pesanan Dibatalkan** juga menjalankan pemrosesan lewat `onEdit`. Gunakan menu pembatalan untuk tindakan yang penting; simple trigger dapat dibatasi Google atau terlewat saat edit massal. Pemeriksaan data mendeteksi pembatalan dengan kuota yang belum selesai. Pesanan yang sudah dibatalkan tidak dapat diaktifkan ulang; buat order baru.
 
-## Produk tanpa kolom ID
+Jika pembayaran sudah `Lunas` ketika dibatalkan, status menjadi **Perlu Pengembalian**. Setelah pengelola mengembalikan uang, gunakan **Catat Dana Dikembalikan**. Ini pencatatan manual, bukan payment gateway atau bukti otomatis dari bank/WhatsApp.
 
-Skema products: `nama`, `id_kategori`, `brand`, `harga`, `deskripsi`, `url_foto`, `is_unggulan`, `harga_grosir`, `min_beli_grosir`, `satuan`. Kolom `stok` lama diabaikan.
+Order lama tanpa bukti `coupon_debited` yang lengkap tidak otomatis diberi refund kuota; menu meminta pemeriksaan manual agar tidak mengembalikan kuota dua kali atas transaksi historis yang statusnya tidak diketahui.
 
-Tidak ada ID produk yang harus diisi. Pengenal internal berasal dari nama+brand dan tidak dipengaruhi penghapusan ID lama, urutan baris, atau perubahan harga. Mengganti nama/brand membuat identitas baru; pelanggan perlu memilih ulang item yang berganti identitas. Bedakan nama setiap varian. Kolom brands cukup `nama_brand`, `url_logo`; banners memakai `keterangan`, `url_gambar`, `link`.
+## Transaksi, retry dan jurnal
 
-Menu pembaruan menghapus ID produk/brand serta token tracking usang. Header banner lama diganti menjadi `keterangan` dengan nilai lama dipertahankan; bila kedua kolom sudah ada, `keterangan` dipertahankan dan nilai ID lama tersedia di cadangan. Header dikenal dengan variasi huruf besar/spasi seperti `ID Product`/`id_products` dinormalisasi. Header ambigu/duplikat atau pasangan nama+brand ganda menghentikan migrasi sebelum perubahan.
+Browser membuat kunci request acak 64 karakter dan mempertahankannya saat hasil checkout belum diketahui. Server menyimpan hash payload dan snapshot bersama order. Retry payload yang sama mengembalikan order yang sama dengan harga/kupon/satuan saat pencatatan, bukan harga katalog yang baru diedit. Payload berbeda pada request yang sudah tercatat tidak menimpa order; tersedia pilihan melanjutkan pesan sebelumnya atau memulai pesanan baru.
 
-Menu tidak mereset data, menambah contoh, menghapus kolom tambahan lain, atau otomatis memperbaiki kategori lama yang masih memakai ID kategori. Jalur menu lama `setupDatabase_` diarahkan ke pembaruan yang sama. Initializer lama hanya tersedia sebagai fungsi privat `initializeDatabase_` dan tidak tampil di menu.
+Jurnal kecil pada Script Properties mencatat niat checkout, pengembalian kuota, dan kesepakatan akhir sebelum penulisan beberapa field. Operasi finansial berikutnya memulihkan jurnal terlebih dahulu. Checkout yang terputus di antara pemotongan kuota dan penulisan order dapat diperiksa: kuota dipertahankan bila row order ditemukan, atau dipulihkan bila row tidak tercatat. Refund membandingkan kuota sebelum/sesudah dan penanda refund agar tidak mengkredit ulang. Kesepakatan sebagian tidak ditampilkan sebagai total final yang sudah dikonfirmasi.
 
-## Harga grosir, stok manual, dan WhatsApp
+Jika jurnal tidak cocok dengan data yang telah diedit manual, proses berhenti untuk pemeriksaan, bukan menebak angka. **Jangan mengedit kuota/metadata atau mereset Script Properties saat ada jurnal tertunda.** Gunakan menu pemulihan dan pemeriksaan data. Jurnal bukan pengganti database transaksional: error layanan dengan hasil tulis tidak pasti, perubahan manual di luar lock, pemulihan backup yang tidak sejalan dengan properties, atau penghapusan metadata tetap membutuhkan rekonsiliasi pengelola.
 
-| harga | harga_grosir | min_beli_grosir |
-| --- | --- | --- |
-| 10000 | 9000 | 12 |
+Kolom metadata disembunyikan dan diberi peringatan edit. Proteksi ini tidak mengubah sharing atau mencabut hak editor; pemilik tetap dapat mengabaikan peringatannya. Ongkir, total akhir dan status pembayaran tetap terlihat, tetapi diperbarui melalui menu. Jangan menimpa `total_harga` dengan total termasuk ongkir.
 
-Jumlah 1–11 memakai Rp10.000/unit; 12 atau lebih memakai Rp9.000 untuk **seluruh unit produk tersebut**. Produk berbeda tidak digabung. Turun di bawah batas mengembalikan harga normal. Kedua kolom grosir harus lengkap atau sama-sama kosong/nol. Kupon dihitung setelah grosir; server membaca ulang harga/kupon dan mengabaikan harga/total dari browser.
+## Produk, satuan dan kunci sistem
 
-Tidak ada pengecekan stok otomatis. Pesanan dicatat sebagai **Menunggu Konfirmasi Stok**. Pemilik memeriksa stok, ongkir, total akhir, dan pembayaran melalui WhatsApp. `wa.me` menyiapkan pesan, tetapi aplikasi tidak membuktikan bahwa pengguna menekan Kirim. Tidak ada pembayaran otomatis.
+Kolom yang diisi pengelola di `products`: `nama`, `id_kategori`, `brand`, `harga`, `deskripsi`, `url_foto`, `is_unggulan`, `harga_grosir`, `min_beli_grosir`, `satuan`. Kolom `id_produk` dan `id_brand` lama tetap dihapus. `id_banner` tetap diganti menjadi `keterangan`. Stok lama diabaikan.
 
-Kuota kupon masih dikonsumsi ketika order dicatat; membatalkan status secara manual belum otomatis mengembalikan kuotanya. Jangan menambah pemulihan manual tanpa memeriksa riwayat agar tidak mengembalikan dua kali.
+`_kunci_produk` adalah **kolom sistem tersembunyi yang dihasilkan otomatis, bukan ID yang harus diketik pengelola**. Migrasi pertama mempertahankan kunci lama yang dihitung dari nama+brand sehingga keranjang yang kompatibel tidak putus. Sesudah itu kunci disimpan tetap; produk baru mendapat kunci otomatis melalui `onEdit` atau pembaruan struktur. Nama+brand setiap varian tetap harus unik agar pilihan produk jelas.
 
-## Keranjang dan pelacakan
+Urutkan seluruh sheet/baris termasuk kolom tersembunyi, bukan hanya sebagian sel. Jangan mengganti/menghapus kunci sistem. Jika menyalin baris, trigger mencoba memberi kunci baru pada salinannya; checker menolak kunci/nama yang ganda agar tidak memesan produk yang salah. Produk dengan kunci belum siap tidak dijual sampai data diperbarui, bukan dipadankan dengan produk lain.
 
-Keranjang perangkat yang sama menyimpan ID internal+jumlah selama maksimal 30 hari. Harga dibaca kembali saat pemulihan. Browser yang menolak storage tetap bisa berbelanja pada sesi halaman; pemulihan lintas perangkat tidak tersedia.
+Baris kosong diabaikan, produk rusak/ambigu disisihkan, dan menu produk menunjukkan nomor baris yang perlu diperbaiki. Harga nol harus disengaja. `is_unggulan` memakai `YA`/`TIDAK`. `id_kategori` berisi nama yang cocok dengan categories, bukan ID kategori dari skema lama. Migrasi struktur tidak menebak relasi kategori/brand yang ambigu.
 
-Pelacakan tetap **cukup satu ID pesanan**. Nama, nomor WA, alamat, catatan, kunci request, dan snapshot checkout tidak dikirim oleh endpoint tracking. ID masih berurutan sehingga dapat ditebak; pembatasan permintaan hanya mengurangi percobaan dan tidak menggantikan otorisasi. ID acak dan penyederhanaan ringkasan tracking tetap menjadi pekerjaan lanjutan sebelum penilaian launch penuh. ID terakhir saja disimpan lokal untuk mengisi form pelacakan setelah refresh, bukan data pelanggan.
+## Grosir, voucher dan WhatsApp
+
+| harga | harga_grosir | min_beli_grosir | satuan |
+| --- | --- | --- | --- |
+| 10000 | 9000 | 12 | box |
+
+1–11 box memakai Rp10.000/box; mulai 12 box **seluruh jumlah produk tersebut** memakai Rp9.000/box. Produk berbeda tidak digabung. Turun di bawah minimum mengembalikan harga normal. Kedua kolom grosir harus lengkap atau sama-sama kosong/nol. Server membaca harga dan kupon kembali saat checkout; harga/total dari browser diabaikan.
+
+Preview voucher memakai cache singkat maksimal 30 detik dan tidak menunggu lock transaksi. Cache di halaman tidak memperpanjang masa berlaku hasil secara berulang. UI memberi kesempatan mencoba lagi setelah 12 detik; callback lama yang sudah dibatalkan diabaikan. Pemeriksaan awal bisa sementara berbeda dari sheet yang baru diedit, tetapi checkout selalu memakai data langsung.
+
+WhatsApp dibuka setelah order tercatat, tanpa halaman konfirmasi. Tab disiapkan pada klik agar callback server tidak dianggap popup tanpa tindakan pengguna. Browser/OS menentukan pembukaan aplikasi WhatsApp atau WhatsApp Web; pembeli tetap menekan Kirim. Jika popup diblokir, tautan cadangan memakai order yang sudah ada. Format pesan berisi sapaan, ID/tanggal, kontak/pengiriman, item+satuan, subtotal, diskon bila ada, total dan permintaan konfirmasi manual.
+
+Nama, alamat dan nomor pelanggan tidak disimpan dalam localStorage. Pemulihan pesan menggunakan bukti request acak yang disimpan perangkat dan snapshot server; **bukti perangkat ini bersifat rahasia, jangan dibagikan**. Hanya satu referensi pesanan terakhir disimpan untuk pemulihan, maksimal 30 hari pada browser. Storage yang diblokir hanya dapat mempertahankan bukti pada sesi halaman; simpan ID/pesan sebelum menutup halaman. Keranjang pembelian baru yang kebetulan sama dengan order lama tidak dikosongkan oleh pemulihan receipt lama.
+
+## Tracking dan batas aplikasi
+
+Tracking tetap satu ID. ID baru acak; ID lama berurutan hanya menampilkan status/tanggal. Rincian order baru berisi barang, satuan, subtotal/diskon, total produk, kesepakatan ongkir/total akhir dan pembayaran. Nama/WA/alamat/catatan, kunci request dan snapshot privat tidak dikirim oleh tracking. Mengetahui ID acak tetap memungkinkan melihat ringkasan, jadi jangan menyebarkannya tanpa perlu.
+
+Batas awal: katalog/detail/pemulihan keranjang 600/menit global; tracking dan preview voucher 120/menit; percobaan checkout 120/menit; order baru 60/10 menit global dan 5/10 menit per nomor ternormalisasi. Read counter memakai cache nonblocking yang best-effort; counter finansial diperiksa di dalam lock. Cache Google dapat dieviksikan dan counter baca bisa meleset saat bersamaan. Ini bukan perlindungan DDoS atau pengganti pengukuran kapasitas.
+
+CSS utama dibundel dalam `css.html`, bukan compiler Tailwind CDN. Font, ikon dan foto masih bisa memerlukan koneksi eksternal. Header/kategori tetap sticky dan kategori bisa digeser horizontal. Storage, popup dan scroll tetap perlu diuji pada iframe/domain sebenarnya.
 
 ## Pengujian dan build
 
@@ -140,19 +112,16 @@ npm run test:backend
 npm run test:browser
 ```
 
-Browser tests memerlukan Chromium (`/usr/bin/chromium` atau `CHROMIUM_PATH`). Dependensi pengembang dikunci di `package-lock.json`; pengguna Apps Script cukup menyalin file aplikasi, tidak perlu menginstal Node.
+Build menggunakan Tailwind 3.4.17. Browser tests memakai Chromium (`/usr/bin/chromium` atau `CHROMIUM_PATH`) dan CSS produksi dengan koneksi luar diblokir/ditiru.
 
-- Backend: checkout, harga/grosir/kupon, snapshot/retry/conflict, penulisan ambigu, counter, data produk rusak, batas permintaan, tracking, dan keranjang.
-- Migrasi: cadangan, seluruh skema, penghapusan kolom lama, header variasi, pengulangan dan penanganan kegagalan.
-- Browser checkout/tracking/cart/wholesale: alur normal dan kegagalan dengan backend tiruan/layanan Sheets tiruan sesuai suite.
-- `tests/launch.browser.cjs`: respons kategori/pencarian yang terbalik, modal ditutup, penanganan markup/URL/brand bertanda kutip, dan CSS produksi saat CDN diblokir.
-- `tests/retry.browser.cjs`: backend repo + browser, respons hilang sesudah commit, reload dan retry, kupon yang terlepas setelah reload, satu baris order dan satu pemakaian kuota.
-- Opsional: `MIGRATE_DURING_CART=1 node tests/wholesale.browser.cjs` untuk penghapusan kolom ID saat keranjang aktif.
+- 57 pemeriksaan backend dasar + 14 pemeriksaan penyelesaian audit = **71 pemeriksaan backend**, ditambah suite migrasi.
+- Delapan suite browser: checkout, tracking, keranjang, grosir, keamanan/race/voucher, pemulihan saat respons hilang, popup WhatsApp, dan kesiapan launch terintegrasi.
+- Pengujian tambahan mencakup gagal voucher lalu benar, setting ganda/08, random/legacy tracking, subtotal/satuan, pembatalan berulang, write yang sudah commit lalu error, jurnal terputus, ongkir/pembayaran, pemulihan pesan setelah refresh, keranjang pembelian baru, serta rename dan pengurutan seluruh baris produk.
 
-## Launch dan domain
+Tes tidak melakukan transfer uang, mengirim WhatsApp, mengedit sheet asli, atau menjanjikan transaksi ACID pada layanan Google. Data migrasi dipertahankan dan dicadangkan; metadata baru ditambahkan tanpa mereset pesanan lama.
 
-Audit ulang versi terbaru tersedia di [AUDIT-PRA-LAUNCH.md](AUDIT-PRA-LAUNCH.md), mencakup temuan tersisa setelah seluruh revisi hingga kategori sticky.
+## Yang masih perlu dilakukan pada lingkungan nyata
 
-[AUDIT-LAUNCH.md](AUDIT-LAUNCH.md) menyimpan audit awal dan status perbaikannya. Perbaikan kode belum berarti deployment/Sheet asli sudah diuji. Masih perlu pemeriksaan izin publik `/exec`, nomor WA dan foto asli, status/pembayaran/pembatalan manual, backup/pemulihan, serta pengujian Chrome Android dan Safari iPhone.
+Setelah pemasangan: periksa semua data melalui menu, nomor WA/foto asli, izin sheet/backup/editor, satu deployment `/exec` publik yang benar, order uji yang diterima di WA, status/payment/pembatalan, pemulihan jurnal, serta uji Chrome Android dan Safari iPhone. Jadwalkan backup dan retensi data pelanggan; backup migrasi tidak memuat order yang masuk belakangan. Tinjau file cadangan dan izin aksesnya. Jangan mengubah data/Script Properties yang masih dalam transaksi ketika rollback.
 
-Apps Script tidak menyediakan custom-domain mapping langsung seperti hosting biasa. Google Sites + custom domain + embed `/exec` adalah jalur perubahan minimum bila fitur akun mendukungnya. Uji scroll, storage iframe dan WhatsApp pada domain nyata. Hosting frontend terpisah membutuhkan API/perantara pengganti `google.script.run`; memindahkan HTML saja tidak cukup. Tidak ada domain/deployment yang diubah oleh paket ini.
+Domain dan DNS belum diubah. Apps Script tidak mendukung custom-domain mapping langsung seperti hosting biasa. Google Sites + custom domain + embed `/exec` adalah jalur perubahan minimum jika fitur akun mendukung; uji ulang popup/storage pada iframe tersebut. Frontend hosting terpisah perlu API/perantara pengganti `google.script.run`. SEO/URL per produk, akun pelanggan dan pembayaran otomatis bukan syarat bagi katalog manual ini dan belum ditambahkan.
