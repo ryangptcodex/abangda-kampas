@@ -151,6 +151,8 @@ Browser tests memerlukan Chromium (`/usr/bin/chromium` atau `CHROMIUM_PATH`). De
 
 ## Launch dan domain
 
+Audit ulang versi terbaru tersedia di [AUDIT-PRA-LAUNCH.md](AUDIT-PRA-LAUNCH.md), mencakup temuan tersisa setelah seluruh revisi hingga kategori sticky.
+
 [AUDIT-LAUNCH.md](AUDIT-LAUNCH.md) menyimpan audit awal dan status perbaikannya. Perbaikan kode belum berarti deployment/Sheet asli sudah diuji. Masih perlu pemeriksaan izin publik `/exec`, nomor WA dan foto asli, status/pembayaran/pembatalan manual, backup/pemulihan, serta pengujian Chrome Android dan Safari iPhone.
 
 Apps Script tidak menyediakan custom-domain mapping langsung seperti hosting biasa. Google Sites + custom domain + embed `/exec` adalah jalur perubahan minimum bila fitur akun mendukungnya. Uji scroll, storage iframe dan WhatsApp pada domain nyata. Hosting frontend terpisah membutuhkan API/perantara pengganti `google.script.run`; memindahkan HTML saja tidak cukup. Tidak ada domain/deployment yang diubah oleh paket ini.
