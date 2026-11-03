@@ -19,7 +19,7 @@ const {fixture}=require('./helpers/apps-script.cjs');
   const popup=popupPromise?await popupPromise:null;
   await page.waitForFunction(()=>cartCheckoutPending);while(!release)await new Promise(r=>setTimeout(r,5));
   assert.equal(f.tables.orders.length,1,'WhatsApp must open before order write finishes');
-  if(popup){await popup.waitForURL('https://wa.me/**');assert.equal(await popup.evaluate(()=>window.opener),null);assert.match(decodeURIComponent(popup.url()),/Estimasi Total/);}
+  if(popup){await popup.waitForURL('https://wa.me/**');assert.equal(await popup.evaluate(()=>window.opener),null);const message=new URL(popup.url()).searchParams.get('text');assert.match(message,/Estimasi total produk/);assert.match(message,/\d{2}\/\d{2}\/\d{4} \d{2}:\d{2} WIB/);assert.match(message,/• Beras \[Abangda\] — 1 pcs × Rp 34\.500 = Rp 34\.500/);assert.match(message,/Pelacakan tersedia setelah pencatatan berhasil/);assert.doesNotMatch(message,/&#x20;|Pencatatan pesanan sedang diproses/);}
   else{assert.equal(context.pages().length,1);assert.match(await page.locator('#instantWhatsAppFallback').getAttribute('href'),/^https:\/\/wa.me\//);}
   const sentHref=await page.locator('#instantWhatsAppFallback').getAttribute('href');
   const expectedId=new URL(sentHref).searchParams.get('text').match(/TA-[A-F0-9]{20}/)[0];

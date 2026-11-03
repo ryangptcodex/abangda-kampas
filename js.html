@@ -1260,14 +1260,17 @@ function instantWhatsAppUrl_(payload) {
   const subtotal = cartState.reduce((sum,item)=>sum+item.harga*item.qty,0);
   const discount = appliedCoupon ? Number(appliedCoupon.discountAmount || 0) : 0;
   const id = 'TA-' + payload.request_id.slice(0,20).toUpperCase();
-  let message = '👋🏻 Halo Abangda...\n\n*PESANAN BARU - TOKO ABANGDA*\n*ID Pesanan:* '+id+'\n*Tanggal:* '+new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'})+'\n\n';
+  const dateParts = new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jakarta',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
+  const datePart = type => dateParts.find(part=>part.type===type).value;
+  const dateText = datePart('day')+'/'+datePart('month')+'/'+datePart('year')+' '+datePart('hour')+':'+datePart('minute')+' WIB';
+  let message = '👋🏻 Halo Abangda...\n\n*PESANAN BARU - TOKO ABANGDA*\n*ID Pesanan:* '+id+'\n*Tanggal:* '+dateText+'\n\n';
   message += '*Nama:* '+payload.nama_pemesan+'\n*No. WhatsApp:* '+buyerPhone+'\n*Pengiriman:* '+(payload.tipe_pengiriman==='Delivery'?'Diantar':'Ambil Sendiri')+'\n';
   if(payload.tipe_pengiriman==='Delivery')message+='*Alamat:* '+payload.alamat+'\n';
-  message+='*Catatan:* '+(payload.catatan||'-')+'\n\n*RINCIAN ITEM:*\n';
-  cartState.forEach(item=>{message+='• '+item.nama+' x '+item.qty+' '+(item.satuan||'pcs')+' = '+money(item.harga*item.qty)+'\n';});
-  message+='\nSubtotal : '+money(subtotal)+'\n';
-  if(appliedCoupon)message+='Estimasi diskon ('+appliedCoupon.code+') : -'+money(discount)+'\n';
-  message+='*Estimasi Total : '+money(Math.max(0,subtotal-discount))+'*\n\n_Pencatatan pesanan sedang diproses. Simpan ID untuk pelacakan setelah pesanan tercatat._\n_Mohon konfirmasi harga, voucher, stok, ongkir jika ada, total akhir, dan cara pembayaran._\n_Terima kasih Abangda!_';
+  message+='*Catatan:* '+(payload.catatan||'-')+'\n\n*RINCIAN PESANAN:*\n';
+  cartState.forEach(item=>{const name=item.nama+(item.brand&&!item.nama.toLowerCase().includes(item.brand.toLowerCase())?' ['+item.brand+']':'');message+='• '+name+' — '+item.qty+' '+(item.satuan||'pcs')+' × '+money(item.harga)+' = '+money(item.harga*item.qty)+'\n';});
+  message+='\nSubtotal produk: '+money(subtotal)+'\n';
+  if(appliedCoupon)message+='Estimasi diskon ('+appliedCoupon.code+'): -'+money(discount)+'\n';
+  message+='*Estimasi total produk: '+money(Math.max(0,subtotal-discount))+'*\n_Belum termasuk ongkir jika ada._\n\nSimpan ID pesanan ini. Pelacakan tersedia setelah pencatatan berhasil.\n\n_Mohon konfirmasi ketersediaan barang, voucher jika digunakan, ongkir, total akhir, dan cara pembayaran._\n_Terima kasih, Abangda!_';
   return 'https://wa.me/'+phone+'?text='+encodeURIComponent(message);
 }
 

@@ -96,21 +96,22 @@ function replayCheckout_(sheet, requestId, requestHash) {
 function checkoutResponse_(orderId, dateText, summary, waTarget) {
   const delivery = summary.tipe_pengiriman === 'Delivery' ? 'Diantar' : 'Ambil Sendiri';
   let message = '👋🏻 Halo Abangda...\n\n*PESANAN BARU - TOKO ABANGDA*\n';
-  message += '*ID Pesanan:* ' + orderId + '\n*Tanggal:* ' + dateText + '\n';
-  message += '_Simpan ID pesanan ini untuk melacak pesanan._\n\n';
+  message += '*ID Pesanan:* ' + orderId + '\n*Tanggal:* ' + String(dateText).replace(/(\d{2}:\d{2}):\d{2}$/, '$1') + ' WIB\n';
+  message += '\n';
   message += '*Nama:* ' + summary.nama_pemesan + '\n*No. WhatsApp:* ' + summary.no_whatsapp + '\n';
   message += '*Pengiriman:* ' + delivery + '\n';
   if (summary.alamat) message += '*Alamat:* ' + summary.alamat + '\n';
-  message += '*Catatan:* ' + (summary.catatan || '-') + '\n\n*RINCIAN ITEM:*\n';
+  message += '*Catatan:* ' + (summary.catatan || '-') + '\n\n*RINCIAN PESANAN:*\n';
   summary.items.forEach(function(item) {
     const name = item.nama + (item.brand && !item.nama.toLowerCase().includes(item.brand.toLowerCase()) ? ' [' + item.brand + ']' : '');
-    message += '• ' + name + ' x ' + item.qty + ' ' + (item.satuan || 'pcs') + ' = Rp ' + (item.harga * item.qty).toLocaleString('id-ID') + '\n';
+    message += '• ' + name + ' — ' + item.qty + ' ' + (item.satuan || 'pcs') + ' × Rp ' + item.harga.toLocaleString('id-ID') + ' = Rp ' + (item.harga * item.qty).toLocaleString('id-ID') + '\n';
   });
-  message += '\nSubtotal : Rp ' + summary.subtotal.toLocaleString('id-ID') + '\n';
-  if (summary.kode_kupon) message += 'Diskon (' + summary.kode_kupon + ') : -Rp ' + summary.diskon.toLocaleString('id-ID') + '\n';
-  message += '*Total : Rp ' + summary.total_harga.toLocaleString('id-ID') + '*\n\n';
-  message += '_Mohon konfirmasi stok, ongkir jika ada, total akhir, dan cara pembayaran._\n';
-  message += '_Terima kasih Abangda!_';
+  message += '\nSubtotal produk: Rp ' + summary.subtotal.toLocaleString('id-ID') + '\n';
+  if (summary.kode_kupon) message += 'Diskon (' + summary.kode_kupon + '): -Rp ' + summary.diskon.toLocaleString('id-ID') + '\n';
+  message += '*Estimasi total produk: Rp ' + summary.total_harga.toLocaleString('id-ID') + '*\n_Belum termasuk ongkir jika ada._\n\n';
+  message += 'Simpan ID pesanan ini untuk melacak pesanan.\n\n';
+  message += '_Mohon konfirmasi ketersediaan barang, voucher jika digunakan, ongkir, total akhir, dan cara pembayaran._\n';
+  message += '_Terima kasih, Abangda!_';
   return {success:true,orderId:orderId,waUrl:'https://wa.me/' + waTarget + '?text=' + encodeURIComponent(message),summary:summary};
 }
 

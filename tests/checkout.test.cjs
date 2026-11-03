@@ -153,7 +153,7 @@ test('WhatsApp uses the requested greeting, Indonesian delivery label, units and
  const f=fixture();f.tables.products[0].push('satuan');f.tables.products[1].push('box');const p=f.payload();p.kode_kupon='HEMAT';
  const r=f.context.createOrder(p);assert.equal(r.success,true);const text=new URL(r.waUrl).searchParams.get('text');
  assert.ok(text.startsWith('👋🏻 Halo Abangda...\n\n*PESANAN BARU - TOKO ABANGDA*\n'));
- assert.match(text,/No\. WhatsApp:/);assert.match(text,/Pengiriman:\* Diantar/);assert.match(text,/• Beras \[Abangda\] x 2 box = Rp 69\.000/);assert.match(text,/Diskon \(HEMAT\) : -Rp 6\.900/);assert.match(text,/\*Total : Rp 62\.100\*/);assert.ok(text.endsWith('_Terima kasih Abangda!_'));
+ assert.match(text,/No\. WhatsApp:/);assert.match(text,/Pengiriman:\* Diantar/);assert.match(text,/• Beras \[Abangda\] — 2 box × Rp 34\.500 = Rp 69\.000/);assert.match(text,/Diskon \(HEMAT\): -Rp 6\.900/);assert.match(text,/\*Estimasi total produk: Rp 62\.100\*/);assert.ok(text.endsWith('_Terima kasih, Abangda!_'));
  assert.deepEqual(f.context.createOrder(p),r);
  const other=f.payload();other.tipe_pengiriman='Takeaway';other.alamat='';const take=f.context.createOrder(other);const takeText=new URL(take.waUrl).searchParams.get('text');assert.match(takeText,/Ambil Sendiri/);assert.doesNotMatch(takeText,/\*Alamat:/);
 });
