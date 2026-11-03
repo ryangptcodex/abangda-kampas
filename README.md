@@ -2,6 +2,20 @@
 
 Aplikasi Google Apps Script yang terhubung ke Google Sheets. Nama toko tetap Toko Abangda.
 
+## Tombol pembaruan struktur sheet — 3 November 2026
+
+Untuk memasang menu baru, ganti **seluruh isi [setup.gs](setup.gs)** di Apps Script, simpan, lalu muat ulang Google Sheets. Pilih **🛒 Toko Abangda → 🔄 Perbarui Struktur Sheet**. Jika Google meminta otorisasi untuk membuat cadangan, izinkan menggunakan akun pemilik spreadsheet.
+
+Menu ini membuat salinan lengkap spreadsheet terlebih dahulu, lalu memeriksa tujuh sheet (`products`, `categories`, `brands`, `banners`, `orders`, `coupons`, `settings`) terhadap skema yang juga digunakan setup awal. Sheet/kolom wajib yang belum ada ditambahkan. Kolom `tracking_token` dan `tracking_token_hash` di `orders` dihapus karena pelacakan kini menggunakan ID saja. Dropdown kategori produk dan status pesanan diperbarui.
+
+Baris yang ada, rumus, harga, nomor WhatsApp, pengaturan toko, dan kolom tambahan tetap dipertahankan. Kolom lama `stok` tetap diabaikan aplikasi. Tidak ada penyusunan ulang kolom, reset database, penambahan data contoh, atau penghapusan sheet lain. Menu ini memperbarui struktur; isi data dan aturan bisnis tetap mengikuti konfigurasi milik toko.
+
+Jika header ganda terdeteksi, pembaruan berhenti sebelum perubahan. Jika cadangan gagal dibuat, data tidak diubah. Jika penulisan gagal setelah cadangan dibuat, dialog memberi tautan cadangan; sebagian perubahan mungkin sudah diterapkan. Setiap eksekusi membuat satu cadangan baru dan aman dijalankan ulang terhadap struktur yang sama. Cadangan tidak diperbarui otomatis ketika data baru masuk. ScriptLock melindungi proses dari checkout melalui skrip yang sama, tetapi pengeditan spreadsheet manual tidak mengikuti lock.
+
+Fungsi `updateSheetStructure_` bersifat privat bagi RPC webapp, hanya untuk menu spreadsheet/editor Apps Script. Ini berbeda dari **Siapkan Database**; gunakan menu **Perbarui Struktur Sheet** untuk memperbarui spreadsheet yang sudah berisi data. Tidak perlu memperbarui deployment webapp untuk memunculkan menu spreadsheet; Apps Script harus sudah memakai versi terbaru fitur pelacakan ID saja sebelum kolom token dihapus.
+
+Pengujian lokal: `node tests/migration.test.cjs` memeriksa cadangan sebelum perubahan, seluruh skema, pemeliharaan data/rumus/kolom tambahan, penghapusan token, pengulangan, dan penanganan kegagalan. Spreadsheet asli belum diubah atau diuji dari workspace ini.
+
 ## Pembaruan stok manual, harga grosir, dan kategori — 27 Oktober 2026
 
 Ganti **empat file lengkap**: [code.gs](code.gs) ke backend `Kode.gs` yang ada, [js.html](js.html), [index.html](index.html), dan [setup.gs](setup.gs). `css.html` tetap. Simpan semuanya, buka `/dev`, lalu muat ulang spreadsheet. Jangan menjalankan setup database untuk memasang revisi ini.

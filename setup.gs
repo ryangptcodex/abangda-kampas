@@ -6,6 +6,7 @@
 function onOpen(e) {
   SpreadsheetApp.getUi()
     .createMenu('🛒 Toko Abangda')
+    .addItem('🔄 Perbarui Struktur Sheet', 'updateSheetStructure_')
     .addItem('🛠️ Siapkan Database', 'setupDatabase_')
     .addItem('💰 Siapkan Kolom Harga Grosir', 'prepareWholesaleColumns_')
     .addSeparator()
@@ -65,59 +66,7 @@ function setupDatabase_() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    const schemas = {
-      products: [
-        'id_produk',
-        'nama',
-        'id_kategori',
-        'brand',
-        'harga',
-        'deskripsi',
-        'url_foto',
-        'is_unggulan',
-        'harga_grosir',
-        'min_beli_grosir'
-      ],
-      categories: [
-        'nama',
-        'url_ikon'
-      ],
-      brands: [
-        'id_brand',
-        'nama_brand',
-        'url_logo'
-      ],
-      banners: [
-        'id_banner',
-        'url_gambar',
-        'link'
-      ],
-      orders: [
-        'id_pesanan',
-        'tgl_pesan',
-        'nama_pemesan',
-        'no_whatsapp',
-        'alamat',
-        'catatan',
-        'tipe_pengiriman',
-        'detail_produk',
-        'total_harga',
-        'status'
-      ],
-      coupons: [
-        'kode_kupon',
-        'tipe',
-        'nilai',
-        'min_belanja',
-        'kuota',
-        'status'
-      ],
-      settings: [
-        'kunci',
-        'nilai',
-        'keterangan'
-      ]
-    };
+    const schemas = databaseSchemas_();
 
     // Buat sheet yang belum ada dan tambahkan header yang belum tersedia.
     Object.keys(schemas).forEach(function(sheetName) {
@@ -346,7 +295,8 @@ function applyProductCategoryValidation_(ss) {
     .setHelpText('Pilih nama kategori dari sheet categories.')
     .build();
 
-  const productRows = Math.max(productsSheet.getMaxRows() - 1, 100);
+  const productRows = productsSheet.getMaxRows() - 1;
+  if (productRows < 1) return;
 
   productsSheet
     .getRange(2, productCategoryCol, productRows, 1)
@@ -590,4 +540,136 @@ function seedCouponsIfEmpty(sheet) {
 
     sheet.getRange(2, 1, coupons.length, 6).setValues(coupons);
   }
+}
+
+function databaseSchemas_() {
+  return {
+    products: [
+      'id_produk',
+      'nama',
+      'id_kategori',
+      'brand',
+      'harga',
+      'deskripsi',
+      'url_foto',
+      'is_unggulan',
+      'harga_grosir',
+      'min_beli_grosir'
+    ],
+    categories: [
+      'nama',
+      'url_ikon'
+    ],
+    brands: [
+      'id_brand',
+      'nama_brand',
+      'url_logo'
+    ],
+    banners: [
+      'id_banner',
+      'url_gambar',
+      'link'
+    ],
+    orders: [
+      'id_pesanan',
+      'tgl_pesan',
+      'nama_pemesan',
+      'no_whatsapp',
+      'alamat',
+      'catatan',
+      'tipe_pengiriman',
+      'detail_produk',
+      'total_harga',
+      'status'
+    ],
+    coupons: [
+      'kode_kupon',
+      'tipe',
+      'nilai',
+      'min_belanja',
+      'kuota',
+      'status'
+    ],
+    settings: [
+      'kunci',
+      'nilai',
+      'keterangan'
+    ]
+  };
+}
+
+
+/** Menu spreadsheet privat: migrasi struktur tanpa reset atau data contoh. */
+function updateSheetStructure_() {
+  const ui = SpreadsheetApp.getUi();
+  const lock = LockService.getScriptLock();
+  let locked = false;
+  let backupUrl = '';
+  let message = '';
+  try {
+    if (!lock.tryLock(15000)) throw new Error('Ada proses pesanan lain. Silakan coba lagi.');
+    locked = true;
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const schemas = databaseSchemas_();
+    // Tolak header ambigu sebelum membuat perubahan apa pun.
+    Object.keys(schemas).forEach(function(name) {
+      const sheet = ss.getSheetByName(name);
+      if (!sheet || sheet.getLastColumn() === 0) return;
+      const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+      const seen = Object.create(null);
+      headers.forEach(function(header) {
+        if (!header) return;
+        if (seen[header]) throw new Error('Header ganda "' + header + '" pada sheet ' + name + '. Rapikan header sebelum memperbarui.');
+        seen[header] = true;
+      });
+    });
+    // Salinan utuh harus berhasil sebelum kolom/data diubah.
+    const stamp = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyyMMdd-HHmmss');
+    const backup = ss.copy(ss.getName() + ' - Cadangan sebelum pembaruan ' + stamp);
+    backupUrl = backup.getUrl();
+    let added = 0;
+    let removed = 0;
+    Object.keys(schemas).forEach(function(name) {
+      const sheet = ss.getSheetByName(name) || ss.insertSheet(name);
+      const count = sheet.getLastColumn();
+      const headers = count ? sheet.getRange(1, 1, 1, count).getDisplayValues()[0] : [];
+      schemas[name].forEach(function(header) {
+        if (headers.includes(header)) return;
+        if (sheet.getMaxColumns() <= headers.length) sheet.insertColumnAfter(sheet.getMaxColumns());
+        sheet.getRange(1, headers.length + 1).setValue(header);
+        headers.push(header);
+        added++;
+      });
+      // Hanya dua kolom usang yang secara khusus sudah tidak dipakai.
+      if (name === 'orders') {
+        for (let i = headers.length - 1; i >= 0; i--) {
+          if (['tracking_token', 'tracking_token_hash'].includes(headers[i])) {
+            sheet.deleteColumns(i + 1, 1);
+            headers.splice(i, 1);
+            removed++;
+          }
+        }
+      }
+      formatHeaderRow(sheet, headers.length);
+    });
+    const orders = ss.getSheetByName('orders');
+    const headers = orders.getRange(1, 1, 1, orders.getLastColumn()).getDisplayValues()[0];
+    if (orders.getMaxRows() > 1) {
+      const rule = SpreadsheetApp.newDataValidation()
+        .requireValueInList(['Menunggu Konfirmasi Stok', 'Menunggu Pembayaran', 'Sedang Diproses', 'Sedang Dikirim', 'Sudah Diterima Pembeli', 'Pesanan Dibatalkan'], true)
+        .setAllowInvalid(false).setHelpText('Pilih status resmi pesanan Toko Abangda.').build();
+      orders.getRange(2, headers.indexOf('status') + 1, orders.getMaxRows() - 1, 1).setDataValidation(rule);
+    }
+    applyProductCategoryValidation_(ss);
+    SpreadsheetApp.flush();
+    message = 'Struktur 7 sheet sudah diperbarui.\nKolom ditambahkan: ' + added + '\nKolom token lama dihapus: ' + removed + '\n\nData lama, kolom tambahan, dan pengaturan toko dipertahankan. Tidak ada data contoh yang ditambahkan.';
+  } catch (error) {
+    message = 'Pembaruan belum selesai: ' + (error.message || String(error));
+    if (backupUrl) message += '\nSebagian perubahan mungkin sudah diterapkan. Gunakan cadangan untuk memeriksa atau memulihkan data.';
+  } finally {
+    if (locked) lock.releaseLock();
+  }
+  // Dialog hanya ditampilkan setelah lock dilepas.
+  if (backupUrl) message += '\n\nCadangan lengkap: ' + backupUrl;
+  ui.alert(message);
 }
