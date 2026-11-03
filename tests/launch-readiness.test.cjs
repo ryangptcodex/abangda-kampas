@@ -78,4 +78,9 @@ test('checkout journal recovers a hard interruption between quota debit and row 
 
 test('invalid store contact cannot hide catalog or create orders',()=>{const f=fixture();f.tables.settings[1][1]='tidak valid';const r=f.context.getInitialData();assert.equal(r.success,true);assert.ok(r.featuredProducts.length);assert.equal(r.settings.contactUnavailable,true);assert.equal(r.settings.no_whatsapp,'');assert.equal(f.context.createOrder(f.payload()).success,false);assert.equal(f.tables.orders.length,1);});
 
+test('instant WhatsApp ID matches committed order, retries replay and forged price is ignored',()=>{
+ const f=fixture(),p=f.payload();p.instant_whatsapp=true;p.items[0].harga=1;
+ const r=f.context.createOrder(p);assert.equal(r.success,true);assert.equal(r.orderId,'TA-'+p.request_id.slice(0,20).toUpperCase());assert.equal(r.summary.total_harga,69000);
+ const retry=f.context.createOrder(p);assert.equal(retry.orderId,r.orderId);assert.equal(f.tables.orders.length,2);
+});
 console.log(passed+' launch-readiness checks passed.');

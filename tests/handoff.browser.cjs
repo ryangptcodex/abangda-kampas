@@ -14,19 +14,23 @@ const {fixture}=require('./helpers/apps-script.cjs');
   await context.route('http://handoff.test/**',r=>r.fulfill({contentType:'text/html',body:html}));await page.goto('http://handoff.test/');
   await page.waitForFunction(()=>document.querySelector('#homeProductsGrid [data-role="add"]'));await page.locator('#homeProductsGrid [data-role="add"]').first().click();await page.evaluate(()=>switchTab('checkout'));
   await page.locator('#coNama').fill('Pembeli');await page.locator('#coWa').fill('081234567890');await page.locator('#coAlamat').fill('Alamat');
+  const popupPromise=mode==='blocked'?null:context.waitForEvent('page');
   await page.locator('#btnSubmitCheckout').click();
-  await page.waitForFunction(()=>cartCheckoutPending);while(!release)await new Promise(r=>setTimeout(r,5));assert.equal(f.tables.orders.length,1);
-  assert.equal(context.pages().length,1,'Saving must never open a blank tab');
+  const popup=popupPromise?await popupPromise:null;
+  await page.waitForFunction(()=>cartCheckoutPending);while(!release)await new Promise(r=>setTimeout(r,5));
+  assert.equal(f.tables.orders.length,1,'WhatsApp must open before order write finishes');
+  if(popup){await popup.waitForURL('https://wa.me/**');assert.equal(await popup.evaluate(()=>window.opener),null);assert.match(decodeURIComponent(popup.url()),/Estimasi Total/);}
+  else{assert.equal(context.pages().length,1);assert.match(await page.locator('#instantWhatsAppFallback').getAttribute('href'),/^https:\/\/wa.me\//);}
+  const sentHref=await page.locator('#instantWhatsAppFallback').getAttribute('href');
+  const expectedId=new URL(sentHref).searchParams.get('text').match(/TA-[A-F0-9]{20}/)[0];
   release();await page.waitForFunction(()=>!cartCheckoutPending);
-  if(mode==='failure'){assert.equal(await page.evaluate(()=>cartState.length),1);assert.equal(await page.locator('#orderHandoffNotice').count(),0);assert.equal(await page.locator('#btnSubmitCheckout').isVisible(),true);}
+  if(mode==='failure'){assert.equal(await page.evaluate(()=>cartState.length),1);assert.equal(await page.locator('#orderHandoffNotice').count(),0);assert.equal(await page.locator('#btnSubmitCheckout').isVisible(),true);if(popup)assert.equal(popup.isClosed(),false);}
   else{
-   await page.locator('#orderHandoffNotice').waitFor({state:'visible'});assert.equal(await page.locator('#pageKonfirmasi').count(),0);assert.equal(await page.locator('#pageCheckout').isVisible(),true);assert.equal(f.tables.orders.length,2);
-   assert.equal(context.pages().length,1);assert.equal(await page.locator('#btnSubmitCheckout').isVisible(),false);
-   assert.equal(await page.locator('#orderWhatsAppLink').innerText(),'Lanjut ke WhatsApp');
-   const next=context.waitForEvent('page');await page.locator('#orderWhatsAppLink').click();const popup=await next;await popup.waitForURL('https://wa.me/**');assert.equal(await popup.evaluate(()=>window.opener),null);assert.match(decodeURIComponent(popup.url()),/Halo Abangda/);
-   assert.equal(orderCalls,1);assert.equal(f.tables.orders.length,2);
+   await page.locator('#orderHandoffNotice').waitFor({state:'visible'});assert.equal(await page.locator('#pageKonfirmasi').count(),0);assert.equal(await page.locator('#pageHome').isVisible(),true);assert.equal(f.tables.orders.length,2);
+   assert.equal(f.tables.orders[1][0],expectedId,'Immediate message and stored order must use same ID');
+   assert.equal(orderCalls,1);assert.equal(context.pages().length,mode==='blocked'?1:2,'Response must not open another WhatsApp tab');
   }
   await context.close();
  }
- console.log('PASS delayed save stays on form without blank tabs; ready WhatsApp link opens directly without RPC or duplicate orders; save failure retains cart.');
+ console.log('PASS WhatsApp opens from first click before delayed RPC finishes; same order ID, no blank tab, no second popup, fallback and save failure retain recovery.');
 }finally{await browser.close();}})().catch(e=>{console.error(e);process.exit(1)});

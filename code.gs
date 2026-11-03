@@ -591,7 +591,7 @@ function createOrder(orderPayload) {
     const dateText = Utilities.formatDate(now, 'Asia/Jakarta', 'dd/MM/yyyy HH:mm:ss');
     let orderId = '';
     for (let i=0;i<5;i++) {
-      const candidate = 'TA-'+Utilities.getUuid().replace(/-/g,'').slice(0,20).toUpperCase();
+      const candidate = 'TA-'+(payload.instant_whatsapp === true ? requestId.slice(0,20) : Utilities.getUuid().replace(/-/g,'').slice(0,20)).toUpperCase();
       if (!/^TA-[A-F0-9]{20}$/.test(candidate)) throw new Error('ID pesanan belum dapat dibuat. Coba kembali.');
       if (!findOrderRow_(orders,'id_pesanan',candidate)) { orderId=candidate; break; }
     }

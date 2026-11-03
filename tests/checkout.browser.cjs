@@ -12,7 +12,7 @@ const path = require('node:path');
  const mock=`<script>
  const product={id_produk:'P1',nama:'Beras',brand:'Abangda',id_kategori:'Sembako',harga:34500,stok:10,url_foto:'',deskripsi:'Beras 5kg'};
  const responses={
- getInitialData:{success:true,settings:{nama_toko:'TOKO ABANGDA'},categories:[{id_kategori:'Sembako',nama:'Sembako',url_ikon:''}],brands:[],banners:[],featuredProducts:[product]},
+ getInitialData:{success:true,settings:{nama_toko:'TOKO ABANGDA',no_whatsapp:'6282331463166'},categories:[{id_kategori:'Sembako',nama:'Sembako',url_ikon:''}],brands:[],banners:[],featuredProducts:[product]},
  getProducts:{success:true,data:[product],currentPage:1,totalPages:1,totalItems:1},
  getProductById:{success:true,product},
  validateCoupon:{success:true,code:'HEMAT',type:'PERSEN',value:10,discountAmount:6900,minBelanja:30000,message:'Kupon diterapkan'}
