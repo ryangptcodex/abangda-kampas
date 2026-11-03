@@ -359,22 +359,53 @@ function getCartSnapshot(savedItems) {
   }
 }
 
-function validateCoupon(couponCode, subtotal) {
-  try { consumeBudget_('coupon', PUBLIC_LIMITS.coupon, 60); return validateCoupon_(couponCode,subtotal); }
-  catch (error) { return {success:false,message:error.message || String(error)}; }
+// Voucher preview is read-only: never queue behind the order/migration ScriptLock.
+function couponPreviewBudget_() {
+  const cache = CacheService.getScriptCache();
+  const key = 'budget:coupon-preview:v2:' + Math.floor(Date.now()/60000);
+  const used = Number(cache.get(key) || 0);
+  if (used >= PUBLIC_LIMITS.coupon) throw new Error('Terlalu banyak pemeriksaan voucher. Coba kembali sebentar lagi.');
+  cache.put(key,String(used+1),60);
 }
 
-function validateCoupon_(couponCode, subtotal) {
+function couponPreviewRows_(code) {
+  const cache = CacheService.getScriptCache(), key = 'coupon-preview:v3:' + sha256_(code);
+  try { const saved = cache.get(key); if (saved) { const data = JSON.parse(saved); if (Array.isArray(data.rows) && Array.isArray(data.rows[0]) && data.expiresAt > Date.now()) return data; } } catch (_) {}
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('coupons');
+  if (!sheet) throw new Error('Tabel kupon belum tersedia.');
+  const all = sheet.getDataRange().getValues(), headers = all[0] || [];
+  const index = headers.indexOf('kode_kupon');
+  const row = all.slice(1).find(function(row) { return String(row[index] || '').trim().toUpperCase() === code; });
+  const rows = row ? [headers,row] : [headers];
+  const ttl = row ? 30 : 5, data = {rows:rows,expiresAt:Date.now()+ttl*1000};
+  try { const text = JSON.stringify(data); if (text.length < 20000) cache.put(key,text,ttl); } catch (_) {}
+  return data;
+}
+
+function validateCoupon(couponCode, subtotal) {
+  try {
+    const code = String(couponCode || '').trim().toUpperCase();
+    if (!code || code.length > 64) throw new Error('Masukkan kode kupon yang valid.');
+    couponPreviewBudget_();
+    return validateCoupon_(code,subtotal,true);
+  } catch(error) { return {success:false,message:error.message || String(error)}; }
+}
+
+function validateCoupon_(couponCode, subtotal, preview) {
   try {
     const code = String(couponCode || '').trim().toUpperCase();
     if (!code) throw new Error('Masukkan kode kupon!');
     if (!Number.isSafeInteger(subtotal) || subtotal < 0) {
       throw new Error('Subtotal kupon tidak valid.');
     }
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss && ss.getSheetByName('coupons');
-    if (!sheet) throw new Error('Tabel kupon belum tersedia.');
-    const rows = sheet.getDataRange().getValues();
+    let rows, previewExpiresAt = 0;
+    if (preview) { const data = couponPreviewRows_(code); rows = data.rows; previewExpiresAt = data.expiresAt; }
+    else {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const sheet = ss && ss.getSheetByName('coupons');
+      if (!sheet) throw new Error('Tabel kupon belum tersedia.');
+      rows = sheet.getDataRange().getValues();
+    }
     const headers = rows[0] || [];
     const fields = ['kode_kupon', 'tipe', 'nilai', 'min_belanja', 'kuota', 'status'];
     const idx = {};
@@ -408,7 +439,7 @@ function validateCoupon_(couponCode, subtotal) {
     }
     const discount = Math.min(subtotal, type === 'PERSEN' ? Math.round(subtotal * value / 100) : value);
     return {
-      success: true, code: code, type: type, value: value,
+      success: true, code: code, type: type, value: value, previewExpiresAt:previewExpiresAt,
       discountAmount: discount, minBelanja: minimum,
       message: 'Kupon berhasil digunakan! Hemat Rp ' + discount.toLocaleString('id-ID')
     };
@@ -563,6 +594,7 @@ function createOrder(orderPayload) {
     if (quotaRange) quotaRange.setValue(previousQuota - 1);
     orders.appendRow(newRow);
     orderWritten = true;
+    if (couponCode) { try { CacheService.getScriptCache().remove('coupon-preview:v3:' + sha256_(couponCode)); } catch (_) {} }
     return checkoutResponse_(orderId, dateText, summary, waTarget);
   } catch (error) {
     if (!orderWritten && orderSheet && requestId && requestHash) {

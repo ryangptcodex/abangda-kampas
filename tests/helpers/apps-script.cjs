@@ -49,7 +49,7 @@ function fixture(options = {}) {
   const ss = { getSheetByName: name => sheets[name] || null, getActiveSheet: () => sheets[options.activeSheet || 'orders'] };
   const context = {
     console,
-    CacheService:{getScriptCache:()=>({get:key=>{const entry=cache.get(key);return entry&&entry.expiry>Date.now()?entry.value:null;},put(key,value,ttl){cache.set(key,{value,expiry:Date.now()+ttl*1000});}})},
+    CacheService:{getScriptCache:()=>({get:key=>{const entry=cache.get(key);return entry&&entry.expiry>Date.now()?entry.value:null;},put(key,value,ttl){cache.set(key,{value,expiry:Date.now()+ttl*1000});},remove(key){cache.delete(key);}})},
     SpreadsheetApp: {getActiveSpreadsheet: () => ss, getUi: () => ui, flush() {}},
     LockService: {getScriptLock: () => ({tryLock(ms) { attempts++; assert.equal(ms,15000); if (options.busy) return false; activeLocks++;return true; }, releaseLock(){activeLocks--;releases++;}})},
     PropertiesService: {getScriptProperties: () => ({getProperty:k=>properties[k]||null,setProperty(k,v){properties[k]=v;}})},

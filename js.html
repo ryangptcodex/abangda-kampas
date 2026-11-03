@@ -13,6 +13,8 @@
   let selectedModalProduct = null;
   let modalQty = 1;
   let appliedCoupon = null;
+  let couponCheckVersion = 0, couponCheckPending = false, couponSlowTimer = null, couponTimeoutTimer = null;
+  const couponPreviewMemo = new Map();
   let searchDebounceTimer = null;
   let trackingRequestVersion = 0;
   let catalogRequestVersion = 0, suggestionRequestVersion = 0, modalRequestVersion = 0;
@@ -197,6 +199,8 @@
     try { const id=localStorage.getItem('tokoAbangda.lastOrder'); if(id && /^TA-\d{8}-\d{3,}$/.test(id)) document.getElementById('trackOrderIdInput').value=id; } catch (_) {}
     setupInfiniteScroll();
     setupSearchDismissListener();
+    const couponInput = document.getElementById('coCouponCode');
+    if (couponInput) couponInput.addEventListener('input', cancelCouponCheck_);
   });
 
   function setupSearchDismissListener() {
@@ -1001,49 +1005,51 @@
     summary.classList.remove('hidden');
   }
 
+  function cancelCouponCheck_() {
+    couponCheckVersion++; couponCheckPending = false;
+    clearTimeout(couponSlowTimer); clearTimeout(couponTimeoutTimer);
+    const btn = document.getElementById('btnApplyCoupon');
+    if (btn) { btn.disabled = false; btn.textContent = 'PAKAI'; }
+  }
+
   function applyCoupon() {
+    if (!cartReadyForChanges()) return;
+    if (couponCheckPending) return;
     repriceCart();
     const input = document.getElementById('coCouponCode');
     const code = input ? input.value.trim().toUpperCase() : '';
-    if (!code) {
-      showToast('Masukkan kode kupon terlebih dahulu!');
-      return;
-    }
-
-    const subtotal = cartState.reduce(function(acc, item) { return acc + (item.harga * item.qty); }, 0);
-    if (subtotal <= 0) {
-      showToast('Keranjang belanja Anda masih kosong!');
-      return;
-    }
-
-    const btn = document.getElementById('btnApplyCoupon');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-circle-notch animate-spin"></i>';
-
-    safeRun('validateCoupon', function(res) {
-      btn.disabled = false;
-      btn.innerText = 'PAKAI';
-
+    if (!code || code.length > 64) { showToast('Masukkan kode kupon yang valid.'); return; }
+    const subtotal = cartState.reduce(function(sum,item) { return sum + item.harga * item.qty; },0);
+    if (subtotal <= 0) { showToast('Keranjang belanja Anda masih kosong!'); return; }
+    const version = ++couponCheckVersion, btn = document.getElementById('btnApplyCoupon');
+    couponCheckPending = true; btn.disabled = true; btn.textContent = 'Cek…';
+    function complete(res) {
+      if (version !== couponCheckVersion) return;
+      cancelCouponCheck_();
+      if (!input || input.value.trim().toUpperCase() !== code) return;
       if (res.success) {
+        // Keep the original server timestamp: a cache hit must not extend its lifetime.
+        if (!res.fromLocalMemo) couponPreviewMemo.set(code,{at:Date.now(),until:Math.min(Date.now()+30000,res.previewExpiresAt || Date.now()+30000),result:res});
         appliedCoupon = res;
-        
-        const inputGroup = document.getElementById('couponInputGroup');
-        const appliedBox = document.getElementById('couponAppliedBox');
-        if (inputGroup) inputGroup.classList.add('hidden');
-        if (appliedBox) appliedBox.classList.remove('hidden');
-
-        document.getElementById('appliedCouponLabel').innerText = res.code;
-        document.getElementById('appliedCouponDesc').innerText = 'Hemat Rp ' + res.discountAmount.toLocaleString('id-ID') + (res.type === 'PERSEN' ? ' (' + res.value + '%)' : '');
-        
+        document.getElementById('couponInputGroup').classList.add('hidden');
+        document.getElementById('couponAppliedBox').classList.remove('hidden');
+        document.getElementById('appliedCouponLabel').textContent = res.code;
         updateCheckoutTotals();
-        showToast(res.message);
-      } else {
-        showToast(res.message || 'Kupon tidak dapat digunakan.');
-      }
-    }, code, subtotal);
+        if(appliedCoupon)showToast('Voucher diterapkan. Hemat Rp '+appliedCoupon.discountAmount.toLocaleString('id-ID'));
+      } else { couponPreviewMemo.delete(code); showToast(res.message || 'Kupon tidak dapat digunakan.'); }
+    }
+    const memo = couponPreviewMemo.get(code);
+    if (memo && Date.now() >= memo.at && Date.now() < memo.until) { complete(Object.assign({},memo.result,{fromLocalMemo:true})); return; }
+    couponSlowTimer = setTimeout(function(){ if(version===couponCheckVersion) btn.textContent='Tunggu…'; },4000);
+    couponTimeoutTimer = setTimeout(function(){
+      if (version !== couponCheckVersion) return;
+      cancelCouponCheck_();showToast('Pemeriksaan voucher terlalu lama. Coba lagi; pesanan belum dikirim.');
+    },12000);
+    safeRun('validateCoupon',complete,code,subtotal);
   }
 
   function removeCoupon(silently) {
+    cancelCouponCheck_();
     appliedCoupon = null;
     const input = document.getElementById('coCouponCode');
     if (input) input.value = '';
@@ -1154,6 +1160,7 @@ function showPreviousCheckout_(id) {
 }
 
 function submitCheckout() {
+    if (couponCheckPending) { showToast('Tunggu pemeriksaan voucher selesai atau hapus kode voucher terlebih dahulu.'); return; }
     if (!cartReadyForChanges()) return;
   if (!cartState.length) {
     showToast('Keranjang masih kosong!');
@@ -1191,6 +1198,7 @@ function submitCheckout() {
     }
     checkoutAttempt = null;
     try { localStorage.removeItem('tokoAbangda.checkout.v1'); localStorage.setItem('tokoAbangda.lastOrder',res.orderId); } catch (_) {}
+    couponPreviewMemo.clear();
     const summary = res.summary;
     document.getElementById('confirmOrderId').innerText = res.orderId;
     let html = '<p><strong>Nama:</strong> ' + escapeHtml(summary.nama_pemesan) + '</p>';

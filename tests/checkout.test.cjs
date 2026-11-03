@@ -138,6 +138,17 @@ test('public read budget is enforced server-side and missing store WA blocks new
  const denied=f.context.getProducts('','ALL','ALL',1,6);assert.equal(denied.success,false);assert.match(denied.message,/Terlalu banyak/);
  const other=fixture();other.tables.settings[1][1]='';assert.equal(other.context.createOrder(other.payload()).success,false);assert.equal(other.tables.orders.length,1);
 });
+test('voucher preview skips transaction lock, caches rules and recalculates subtotal',()=>{
+ const f=fixture({busy:true});let reads=0;const original=f.sheets.coupons.getDataRange;
+ f.sheets.coupons.getDataRange=()=>{reads++;return original();};
+ const a=f.context.validateCoupon('HEMAT',40000),b=f.context.validateCoupon('hemat',60000);
+ assert.equal(a.success,true);assert.equal(a.discountAmount,4000);assert.equal(b.discountAmount,6000);assert.equal(reads,1);assert.equal(a.previewExpiresAt,b.previewExpiresAt);assert.equal(f.attempts(),0);
+ assert.equal(f.context.createOrder(f.payload()).success,false);
+});
+test('checkout always revalidates live coupon even when preview rules are cached',()=>{
+ const f=fixture();assert.equal(f.context.validateCoupon('HEMAT',69000).success,true);f.tables.coupons[1][5]='NONAKTIF';
+ const p=f.payload();p.kode_kupon='HEMAT';const r=f.context.createOrder(p);assert.equal(r.success,false);assert.match(r.message,/tidak aktif/);assert.equal(f.tables.orders.length,1);
+});
 test('cart snapshot returns current catalog fields and ignores saved display data',()=>{
  const f=fixture();f.tables.products[1][4]=40000;
  const before=JSON.stringify(f.tables);

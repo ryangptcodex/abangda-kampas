@@ -22,6 +22,16 @@ Ganti **kelima file lengkap** dari versi yang sama. Gunakan **Copy raw file** di
 
 Asisten belum dapat mengakses spreadsheet/deployment asli. Semua validasi yang dilaporkan dari repo memakai layanan Apps Script/Sheets tiruan dan Chromium. Jangan menganggap pemasangan kode otomatis berarti sheet sudah dimigrasikan atau deployment sudah diperbarui.
 
+## Voucher lambat — perbaikan terbaru
+
+Untuk pembaruan khusus ini, ganti seluruh isi `code.gs`/`Kode.gs` dan `js.html`, simpan, lalu perbarui deployment `/exec`. Struktur sheet dan file CSS tidak berubah.
+
+Pemeriksaan awal voucher tidak lagi mengambil ScriptLock transaksi yang bisa menunggu 15 detik. Endpoint preview memakai penghitung cache nonblocking dengan batas 120/menit; penghitung preview ini best-effort dan bisa meleset saat permintaan serentak. Batas checkout dan pesanan tetap memakai lock. Aturan satu kupon di-cache server maksimal 30 detik (kode tidak ditemukan 5 detik) dan dihitung kembali terhadap subtotal. Hasil sukses juga bisa dipakai ulang pada halaman yang sama selama 30 detik tanpa panggilan server tambahan; mengubah isi sheet bisa belum terlihat pada preview sampai cache berakhir.
+
+Checkout **selalu** membaca status/kuota/nilai kupon dari sheet terbaru, tanpa memakai cache preview. Kupon yang sudah tidak aktif tetap ditolak saat pesanan dibuat. Cache server kupon terkait dihapus setelah checkout sukses. Tombol voucher menampilkan status pemeriksaan dan memberi kesempatan mencoba ulang setelah 12 detik; ini hanya batas tunggu UI dan tidak membatalkan eksekusi Google. Respons terlambat atau untuk kode yang sudah diganti/dihapus diabaikan. Checkout ditahan selama pemeriksaan voucher masih aktif agar pesanan tidak terkirim tanpa diskon yang sedang diperiksa.
+
+Panggilan pertama masih dipengaruhi startup Apps Script dan jaringan; belum ada pengukuran latensi deployment asli. Pengujian tambahan membuktikan tidak ada penantian ScriptLock pada preview, cache mengurangi pembacaan sheet, dan validasi checkout tetap memakai data terbaru.
+
 ## Enam perbaikan wajib
 
 ### 1. Checkout tahan retry
@@ -56,7 +66,7 @@ Pengunjung mendapat pemberitahuan bahwa sebagian produk sementara tidak tersedia
 
 ### 5. Pembatasan permintaan di server
 
-Penghitung aplikasi menggunakan Script Cache dengan ScriptLock untuk pembaruan counter. Nilai awal di `PUBLIC_LIMITS`:
+Penghitung checkout/katalog/tracking menggunakan Script Cache dengan ScriptLock untuk pembaruan counter. Preview kupon memakai cache nonblocking sebagaimana dijelaskan di atas. Nilai awal di `PUBLIC_LIMITS`:
 
 | Aktivitas | Batas awal |
 | --- | --- |
