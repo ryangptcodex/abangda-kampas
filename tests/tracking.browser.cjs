@@ -40,7 +40,7 @@ const { fixture } = require('./helpers/apps-script.cjs');
     await page.locator('#coWa').fill('081234567890');
     await page.locator('#coAlamat').fill('Alamat pribadi pemesan');
     await page.locator('#btnSubmitCheckout').click();
-    await page.locator('#orderHandoffNotice').waitFor({state:'visible'});
+    await page.locator('#btnOrderNotifications').click();await page.locator('#orderHandoffNotice').waitFor({state:'visible'});
     const orderId = await page.locator('#lastOrderId').innerText();
     assert.equal(await page.locator('#confirmTrackingToken, #trackOrderTokenInput').count(),0);
     assert.doesNotMatch(decodeURIComponent(await page.locator('#orderWhatsAppLink').getAttribute('href')),/kode pelacakan/i);

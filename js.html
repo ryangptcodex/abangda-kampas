@@ -1235,6 +1235,33 @@ function closeCheckoutWindow_(target) {
   try { if (target && !target.closed) target.close(); } catch (_) {}
 }
 
+function ensureOrderNotifications_() {
+  let panel = document.getElementById('orderNotificationsPanel');
+  if(panel)return panel;
+  panel=node_('div','');panel.id='orderNotificationsPanel';panel.style.cssText='display:none;position:fixed;inset:0;z-index:100;background:rgba(15,23,42,.4);padding:16px;align-items:center;justify-content:center';
+  const dialog=node_('div','');dialog.style.cssText='background:white;border-radius:20px;padding:16px;width:100%;max-width:400px;max-height:80vh;overflow:auto;color:#334155';
+  dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');dialog.setAttribute('aria-labelledby','orderNotificationsTitle');
+  const heading=node_('div','flex items-center justify-between mb-3');const title=node_('h2','text-sm font-bold','Notifikasi Pesanan');title.id='orderNotificationsTitle';
+  const close=node_('button','text-brand-blue font-bold','Tutup');close.type='button';close.id='closeOrderNotifications';close.onclick=()=>toggleOrderNotifications_(false);heading.append(title,close);
+  const content=node_('div','text-xs');content.id='orderNotificationsContent';content.textContent='Belum ada notifikasi pesanan di perangkat ini.';dialog.append(heading,content);panel.append(dialog);panel.onclick=event=>{if(event.target===panel)toggleOrderNotifications_(false);};document.body.append(panel);
+  document.addEventListener('keydown',event=>{
+    if(panel.style.display==='none')return;
+    if(event.key==='Escape'){event.preventDefault();toggleOrderNotifications_(false);}
+    if(event.key==='Tab'){
+      const focusable=Array.from(dialog.querySelectorAll('button,a[href]')).filter(el=>!el.disabled);const first=focusable[0],last=focusable[focusable.length-1];
+      if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
+    }
+  });
+  return panel;
+}
+function toggleOrderNotifications_(open) {
+  const panel=ensureOrderNotifications_(),button=document.getElementById('btnOrderNotifications');
+  const visible=typeof open==='boolean'?open:panel.style.display==='none';panel.style.display=visible?'flex':'none';
+  if(button)button.setAttribute('aria-expanded',String(visible));
+  if(visible){const badge=document.getElementById('orderNotificationBadge');if(badge)badge.style.display='none';document.getElementById('closeOrderNotifications').focus();}
+  else if(button)button.focus();
+}
+
 function handoffWhatsApp_(res, target) {
   let href = '';
   try { const url = new URL(res.waUrl); if (url.origin === 'https://wa.me' && /^\/\d+$/.test(url.pathname)) href = url.href; } catch (_) {}
@@ -1242,11 +1269,12 @@ function handoffWhatsApp_(res, target) {
   if (href) { try { if(target && !target.closed) { target.location.replace(href); opened = true; } } catch (_) {} }
   if (!opened) closeCheckoutWindow_(target);
   let notice = document.getElementById('orderHandoffNotice');
-  if (!notice) { notice=node_('div','bg-sky-50 border border-sky-200 p-3 rounded-xl text-xs space-y-2 mb-3');notice.id='orderHandoffNotice';document.querySelector('main').prepend(notice); }
+  if (!notice) { notice=node_('div','bg-sky-50 border border-sky-200 p-3 rounded-xl text-xs space-y-2 mb-3');notice.id='orderHandoffNotice';ensureOrderNotifications_();const content=document.getElementById('orderNotificationsContent');content.replaceChildren(notice); }
+  const badge=document.getElementById('orderNotificationBadge');if(badge&&ensureOrderNotifications_().style.display==='none')badge.style.display='block';
   const line=node_('p','','Pesanan ');const id=node_('strong','',res.orderId);id.id='lastOrderId';line.append(id,document.createTextNode(res.cancelled ? ' sudah dibatalkan.' : opened ? ' sudah tercatat.' : ' sudah tercatat. Tekan tautan di bawah untuk membuka WhatsApp.'));
   notice.replaceChildren(line);
   if(href){const link=node_('a','inline-flex text-brand-blue font-bold mr-3',opened ? 'Buka WhatsApp lagi' : 'Lanjut ke WhatsApp');link.id='orderWhatsAppLink';link.href=href;link.target='_blank';link.rel='noopener noreferrer';notice.append(link);}
-  const track=node_('button','text-brand-blue font-bold','Lacak Pesanan Ini');track.type='button';track.onclick=function(){clearTrackingResult();document.getElementById('trackOrderIdInput').value=res.orderId;switchTab('lacak');};notice.append(track);
+  const track=node_('button','text-brand-blue font-bold','Lacak Pesanan Ini');track.type='button';track.onclick=function(){toggleOrderNotifications_(false);clearTrackingResult();document.getElementById('trackOrderIdInput').value=res.orderId;switchTab('lacak');};notice.append(track);
 }
 
 function instantWhatsAppUrl_(payload) {

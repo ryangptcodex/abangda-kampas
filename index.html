@@ -56,6 +56,11 @@
             <i class="fa-solid fa-border-all"></i>
           </button>
 
+          <button id="btnOrderNotifications" type="button" onclick="toggleOrderNotifications_()" class="p-2 bg-white/15 hover:bg-white/25 rounded-xl text-white text-sm relative transition active:scale-95" title="Notifikasi Pesanan" aria-label="Notifikasi pesanan" aria-expanded="false" aria-controls="orderNotificationsPanel">
+            <i class="fa-solid fa-bell" aria-hidden="true"></i>
+            <span id="orderNotificationBadge" style="display:none;position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:50%;background:#facc15" aria-hidden="true"></span>
+          </button>
+
           <!-- Tombol Keranjang: Membuka Drawer dari Kanan -->
           <button onclick="toggleCartDrawer(true)" class="p-2 bg-white/15 hover:bg-white/25 rounded-xl text-white text-sm relative transition active:scale-95" title="Keranjang Belanja">
             <i class="fa-solid fa-cart-shopping"></i>

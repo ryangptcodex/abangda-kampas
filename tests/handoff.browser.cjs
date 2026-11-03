@@ -26,7 +26,8 @@ const {fixture}=require('./helpers/apps-script.cjs');
   release();await page.waitForFunction(()=>!cartCheckoutPending);
   if(mode==='failure'){assert.equal(await page.evaluate(()=>cartState.length),1);assert.equal(await page.locator('#orderHandoffNotice').count(),0);assert.equal(await page.locator('#btnSubmitCheckout').isVisible(),true);if(popup)assert.equal(popup.isClosed(),false);}
   else{
-   await page.locator('#orderHandoffNotice').waitFor({state:'visible'});assert.equal(await page.locator('#pageKonfirmasi').count(),0);assert.equal(await page.locator('#pageHome').isVisible(),true);assert.equal(f.tables.orders.length,2);
+   await page.locator('#orderHandoffNotice').waitFor({state:'attached'});assert.equal(await page.locator('#orderHandoffNotice').isVisible(),false);assert.equal(await page.locator('#orderNotificationBadge').isVisible(),true);
+   await page.locator('#btnOrderNotifications').click();await page.locator('#orderHandoffNotice').waitFor({state:'visible'});assert.equal(await page.locator('#orderNotificationBadge').isVisible(),false);await page.keyboard.press('Escape');assert.equal(await page.locator('#orderNotificationsPanel').isVisible(),false);assert.equal(await page.locator('#btnOrderNotifications').evaluate(e=>e===document.activeElement),true);await page.locator('#btnOrderNotifications').click();assert.equal(await page.locator('#pageKonfirmasi').count(),0);assert.equal(await page.locator('#pageHome').isVisible(),true);assert.equal(f.tables.orders.length,2);
    assert.equal(f.tables.orders[1][0],expectedId,'Immediate message and stored order must use same ID');
    assert.equal(orderCalls,1);assert.equal(context.pages().length,mode==='blocked'?1:2,'Response must not open another WhatsApp tab');
   }

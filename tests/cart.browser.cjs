@@ -114,7 +114,7 @@ const KEY = 'tokoAbangda.cart.v1';
     while(!releaseOrder)await new Promise(r=>setTimeout(r,10));
     await page.evaluate(()=>quickAddToCart('P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49','Beras',40000,10,'','Abangda'));
     assert.equal(await stored(),beforeOrder);assert.equal(await page.evaluate(()=>cartState[0].qty),1);
-    releaseOrder();await page.locator('#orderHandoffNotice').waitFor({state:'visible'});
+    releaseOrder();await page.locator('#btnOrderNotifications').click();await page.locator('#orderHandoffNotice').waitFor({state:'visible'});
     assert.equal(await stored(),null);
     await page.reload();await ready();assert.equal(await page.evaluate(()=>cartState.length),0);
     // Storage denied by browser privacy settings falls back to a working in-memory cart.

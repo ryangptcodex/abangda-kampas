@@ -57,7 +57,7 @@ const path = require('node:path');
  assert.equal(await page.evaluate(()=>Object.hasOwn(window.submitted.items[0],'harga')),false);
  await page.evaluate(()=>{window.failOrder=false;});
  await page.locator('#btnSubmitCheckout').click();
- await page.locator('#orderHandoffNotice').waitFor({state:'visible'});
+ await page.locator('#btnOrderNotifications').click();await page.locator('#orderHandoffNotice').waitFor({state:'visible'});
  assert.match(decodeURIComponent(await page.locator('#orderWhatsAppLink').getAttribute('href')),/62\.100/);
  assert.equal(await page.locator('#orderHandoffNotice img').count(),0);assert.equal(await page.locator('#pageKonfirmasi').count(),0);
  assert.equal(await page.locator('#orderWhatsAppLink').isVisible(),true);
@@ -72,10 +72,11 @@ const path = require('node:path');
  await page.locator('#orderWhatsAppLink').click();
  const popup=await popupPromise;await popup.close();
  assert.equal(await page.evaluate(()=>window.orderCalls),calls);
+ await page.locator('#closeOrderNotifications').click();
  // Compatibility with an older index: restore dynamically if the link is absent.
  await page.evaluate(()=>{document.getElementById('orderWhatsAppLink').remove();quickAddToCart('P1','Beras',34500,10,'','Abangda');switchTab('checkout');});
  await page.locator('#btnSubmitCheckout').click();
- await page.locator('#orderWhatsAppLink').waitFor({state:'visible'});
+ await page.locator('#btnOrderNotifications').click();await page.locator('#orderWhatsAppLink').waitFor({state:'visible'});
  assert.deepEqual(errors,[]);
  console.log('PASS browser: mobile home, Cara Order, checkout failure retains cart, canonical server WhatsApp total, no confirmation page, fallback WhatsApp link, link reuse without resubmission, compatibility with previous index.');
  } finally {await browser.close();}

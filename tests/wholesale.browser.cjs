@@ -87,7 +87,7 @@ const {fixture}=require('./helpers/apps-script.cjs');
   await page.locator('#coCouponCode').fill('HEMAT');await page.locator('#btnApplyCoupon').click();
   await page.waitForFunction(()=>!document.getElementById('couponAppliedBox').classList.contains('hidden'));
   assert.match(await page.locator('#coTotalTagihan').innerText(),/81\.000/);
-  await page.locator('#btnSubmitCheckout').click();await page.locator('#orderHandoffNotice').waitFor({state:'visible'});
+  await page.locator('#btnSubmitCheckout').click();await page.locator('#btnOrderNotifications').click();await page.locator('#orderHandoffNotice').waitFor({state:'visible'});
   assert.match(decodeURIComponent(await page.locator('#orderWhatsAppLink').getAttribute('href')),/81\.000/);
   const id=await page.locator('#lastOrderId').innerText();
   const order=f.context.trackOrder(id);assert.equal(order.order.total_harga,81000);assert.equal(order.order.items[0].harga,30000);

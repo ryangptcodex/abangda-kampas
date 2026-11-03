@@ -14,7 +14,7 @@ const {fixture}=require('./helpers/apps-script.cjs');
   await page.locator('#btnSubmitCheckout').click();await page.waitForFunction(()=>!cartCheckoutPending);assert.equal(orderCalls,1);assert.equal(f.tables.orders.length,2);
   const key=await page.evaluate(()=>JSON.parse(localStorage.getItem('tokoAbangda.checkout.v1')).key);assert.match(key,/^[a-f0-9]{64}$/);
   const stored=await page.evaluate(()=>localStorage.getItem('tokoAbangda.checkout.v1'));assert.doesNotMatch(stored,/Pembeli|081234567890|Alamat/);
-  await page.reload();await page.locator('#orderHandoffNotice').waitFor({state:'visible'});await page.waitForFunction(()=>!cartRestoreRequired&&cartState.length===0);
+  await page.reload();await page.locator('#btnOrderNotifications').click();await page.locator('#orderHandoffNotice').waitFor({state:'visible'});await page.waitForFunction(()=>!cartRestoreRequired&&cartState.length===0);
   assert.equal(orderCalls,1);assert.equal(f.tables.orders.length,2);assert.equal(f.tables.coupons[1][4],coupon?1:2);
   assert.equal(await page.evaluate(()=>localStorage.getItem('tokoAbangda.checkout.v1')),null);
   const receipt=await page.evaluate(()=>JSON.parse(localStorage.getItem('tokoAbangda.receipt.v1')));assert.equal(receipt.key,key);
