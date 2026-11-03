@@ -44,7 +44,7 @@ test('delivery address required',()=>{const f=fixture(),p=f.payload();p.alamat='
 test('empty cart rejected',()=>{const f=fixture(),p=f.payload();p.items=[];rejected(f,p,/Keranjang/);});
 test('takeaway does not require or store delivery address',()=>{const f=fixture(),p=f.payload();p.tipe_pengiriman='Takeaway';p.alamat='';const r=f.context.createOrder(p);assert.equal(r.success,true);assert.equal(r.summary.alamat,'');});
 test('unavailable lock returns retry message without mutating orders or coupons',()=>{const f=fixture({busy:true});const r=f.context.createOrder(f.payload());assert.equal(r.success,false);assert.match(r.message,/coba lagi/);assert.equal(f.tables.orders.length,1);assert.equal(f.releases(),0);});
-test('serialized calls use distinct order IDs and coupon cannot be used after quota exhausted',()=>{const f=fixture(),p=f.payload();p.kode_kupon='HEMAT';const a=f.context.createOrder(p),b=f.context.createOrder(p),c=f.context.createOrder(p);assert.equal(a.success,true);assert.equal(b.success,true);assert.notEqual(a.orderId,b.orderId);assert.equal(c.success,false);assert.equal(f.tables.orders.length,3);assert.equal(f.tables.coupons[1][4],0);assert.equal(f.releases(),3);});
+test('serialized calls use distinct order IDs and coupon cannot be used after quota exhausted',()=>{const f=fixture(),p=f.payload();p.kode_kupon='HEMAT';const a=f.context.createOrder(p),b=f.context.createOrder({...p,request_id:'b'.repeat(64)}),c=f.context.createOrder({...p,request_id:'c'.repeat(64)});assert.equal(a.success,true);assert.equal(b.success,true);assert.notEqual(a.orderId,b.orderId);assert.equal(c.success,false);assert.equal(f.tables.orders.length,3);assert.equal(f.tables.coupons[1][4],0);assert.equal(f.releases(),3);});
 test('coupon quota restored when append fails',()=>{const f=fixture({failAppend:true}),p=f.payload();p.kode_kupon='HEMAT';rejected(f,p,/Gagal menulis/);});
 test('order columns map by header even when reordered',()=>{const f=fixture();f.tables.orders[0].reverse();const r=f.context.createOrder(f.payload());assert.equal(r.success,true);assert.equal(f.tables.orders[1][f.tables.orders[0].indexOf('id_pesanan')],r.orderId);});
 test('customer text is not interpreted as a sheet formula',()=>{const f=fixture(),p=f.payload();p.nama_pemesan='=1+1';const r=f.context.createOrder(p);assert.equal(r.success,true);assert.equal(f.tables.orders[1][2],"'=1+1");});
@@ -88,7 +88,7 @@ test('products without ID columns support stable catalog, detail, restore and wh
  assert.equal(f.context.getProductById(id).product.nama,'Beras');
  const restored=f.context.getCartSnapshot([{id,qty:3}]);assert.equal(restored.success,true);assert.equal(restored.items[0].harga,30000);
  const payload=f.payload();payload.items=[{id,qty:3}];const order=f.context.createOrder(payload);assert.equal(order.success,true);assert.equal(order.summary.total_harga,90000);
- f.tables.products.push([...f.tables.products[2]]);assert.equal(f.context.createOrder(payload).success,false);
+ f.tables.products.push([...f.tables.products[2]]);payload.request_id='f'.repeat(64);assert.equal(f.context.createOrder(payload).success,false);
 });
 test('removing or changing a legacy ID does not change catalog keys, saved carts or checkout',()=>{
  const f=fixture();const id=f.context.getInitialData().featuredProducts[0].id_produk;
@@ -104,12 +104,46 @@ test('brands and banner descriptions work without legacy IDs',()=>{
  for(const name of ['brands','banners'])f.sheets[name]={getLastRow:()=>2,getDataRange:()=>({getDisplayValues:()=>f.tables[name]})};
  const r=f.context.getInitialData();assert.equal(r.success,true);assert.equal(r.brands[0].nama_brand,'Abangda');assert.equal(r.banners[0].keterangan,'Promo sembako');assert.equal(Object.hasOwn(r.brands[0],'id_brand'),false);
 });
+test('retry replays the same order and coupon only once even after price changes',()=>{
+ const f=fixture(),p=f.payload();p.kode_kupon='HEMAT';const a=f.context.createOrder(p);f.tables.products[1][4]=99999;f.tables.coupons[1][4]=0;
+ const b=f.context.createOrder(p);assert.deepEqual(b,a);assert.equal(f.tables.orders.length,2);assert.equal(f.tables.coupons[1][4],0);
+ p.items[0].qty++;assert.equal(f.context.createOrder(p).success,false);assert.equal(f.tables.orders.length,2);
+});
+test('committed append followed by lost response is recovered without duplicate or quota refund',()=>{
+ const f=fixture(),p=f.payload();p.kode_kupon='HEMAT';const append=f.sheets.orders.appendRow;
+ f.sheets.orders.appendRow=row=>{append(row);throw Error('response lost');};
+ const a=f.context.createOrder(p);assert.equal(a.success,true);assert.equal(f.tables.coupons[1][4],1);assert.deepEqual(f.context.createOrder(p),a);assert.equal(f.tables.orders.length,2);
+});
+test('counter reset cannot reuse an existing order ID and transaction snapshots are stored',()=>{
+ const f=fixture(),p=f.payload();p.kode_kupon='HEMAT';const a=f.context.createOrder(p);
+ f.context.PropertiesService={getScriptProperties:()=>({getProperty:()=>null,setProperty(){}})};
+ const b=f.context.createOrder(f.payload());assert.notEqual(a.orderId,b.orderId);
+ for(const key of ['subtotal','diskon','kode_kupon','request_id','request_hash','checkout_summary'])assert.notEqual(f.tables.orders[1][f.tables.orders[0].indexOf(key)],'');
+});
+test('blank and unrelated damaged/duplicate rows do not take down clean products or checkout',()=>{
+ const f=fixture();f.tables.products.push(Array(f.tables.products[0].length).fill(''));
+ const bad=[...f.tables.products[1]];bad[1]='Rusak';bad[4]='bukan angka';f.tables.products.push(bad);
+ const duplicate=[...f.tables.products[1]];duplicate[1]='Duplikat';f.tables.products.push(duplicate,[...duplicate]);
+ const r=f.context.getProducts('','ALL','ALL',1,6);assert.equal(r.success,true);assert.equal(r.data.length,1);assert.equal(r.catalogWarnings,3);
+ assert.equal(f.context.createOrder(f.payload()).success,true);assert.equal(f.context.getInitialData().success,true);
+});
+test('server budgets deny excessive new orders but allow retries of committed ones',()=>{
+ const f=fixture();const first=f.payload();assert.equal(f.context.createOrder(first).success,true);
+ for(let i=0;i<4;i++)assert.equal(f.context.createOrder(f.payload()).success,true);
+ const count=f.tables.orders.length;const denied=f.context.createOrder(f.payload());assert.equal(denied.success,false);assert.match(denied.message,/Terlalu banyak/);assert.equal(f.tables.orders.length,count);
+ assert.equal(f.context.createOrder(first).success,true);assert.equal(f.tables.orders.length,count);
+});
+test('public read budget is enforced server-side and missing store WA blocks new checkout',()=>{
+ const f=fixture();vm.runInContext('PUBLIC_LIMITS.catalog=2',f.context);assert.equal(f.context.getProducts('','ALL','ALL',1,6).success,true);assert.equal(f.context.getProducts('','ALL','ALL',1,6).success,true);
+ const denied=f.context.getProducts('','ALL','ALL',1,6);assert.equal(denied.success,false);assert.match(denied.message,/Terlalu banyak/);
+ const other=fixture();other.tables.settings[1][1]='';assert.equal(other.context.createOrder(other.payload()).success,false);assert.equal(other.tables.orders.length,1);
+});
 test('cart snapshot returns current catalog fields and ignores saved display data',()=>{
  const f=fixture();f.tables.products[1][4]=40000;
  const before=JSON.stringify(f.tables);
  const r=f.context.getCartSnapshot([{id:'P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49',qty:2,harga:1,nama:'Forged',maxStock:9999}]);
  assert.equal(r.success,true);assert.equal(r.items[0].harga,40000);assert.equal(r.items[0].nama,'Beras');assert.equal(Object.hasOwn(r.items[0],'maxStock'),false);
- assert.equal(JSON.stringify(f.tables),before);assert.equal(f.attempts(),0);
+ assert.equal(JSON.stringify(f.tables),before);assert.equal(f.attempts(),1);
 });
 test('cart snapshot preserves quantities irrespective of legacy stock',()=>{
  const f=fixture();f.tables.products[1][6]=3;
@@ -152,7 +186,7 @@ test('coupons use wholesale subtotal as their base',()=>{
  const f=fixture();f.tables.products[1][9]=30000;f.tables.products[1][10]=2;
  const p=f.payload();p.kode_kupon='HEMAT';const r=f.context.createOrder(p);
  assert.equal(r.success,true);assert.equal(r.summary.subtotal,60000);assert.equal(r.summary.diskon,6000);assert.equal(r.summary.total_harga,54000);
- f.tables.coupons[1][3]=65000;assert.equal(f.context.createOrder(p).success,false);
+ f.tables.coupons[1][3]=65000;p.request_id='b'.repeat(64);assert.equal(f.context.createOrder(p).success,false);
 });
 test('wholesale metadata is consistent across initial catalog, search, detail and saved cart',()=>{
  const f=fixture();f.tables.products[1][9]=30000;f.tables.products[1][10]=3;

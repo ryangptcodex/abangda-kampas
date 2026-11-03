@@ -15,6 +15,7 @@
   let appliedCoupon = null;
   let searchDebounceTimer = null;
   let trackingRequestVersion = 0;
+  let catalogRequestVersion = 0, suggestionRequestVersion = 0, modalRequestVersion = 0;
 
   const CART_STORAGE_KEY = 'tokoAbangda.cart.v1';
   const CART_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -170,7 +171,7 @@
   function safeRun(serverFunction, callback, ...args) {
     function failed(error) {
       const message = error && error.message ? error.message : String(error);
-      if (serverFunction === 'getInitialData' || serverFunction === 'getProducts') {
+      if (serverFunction === 'getInitialData') {
         showDataError(message);
       }
       showToast('Error Server: ' + message);
@@ -182,7 +183,7 @@
     }
     const runner = google.script.run.withSuccessHandler(function(res) {
       const result = res || { success: false, message: 'Server tidak mengembalikan data.' };
-      if ((serverFunction === 'getInitialData' || serverFunction === 'getProducts') && !result.success) {
+      if (serverFunction === 'getInitialData' && !result.success) {
         showDataError(result.message || 'Respons server tidak berhasil.');
       }
       callback(result);
@@ -193,6 +194,7 @@
   document.addEventListener('DOMContentLoaded', function() {
     restoreSavedCart();
     initCustomerApp();
+    try { const id=localStorage.getItem('tokoAbangda.lastOrder'); if(id && /^TA-\d{8}-\d{3,}$/.test(id)) document.getElementById('trackOrderIdInput').value=id; } catch (_) {}
     setupInfiniteScroll();
     setupSearchDismissListener();
   });
@@ -334,9 +336,17 @@
     switchTab(tab);
   }
 
+  function showCatalogNotice_(count) {
+    let box = document.getElementById('catalogAvailabilityNotice');
+    if (!box) { box = node_('p','text-xs text-slate-600 my-2');box.id='catalogAvailabilityNotice';document.getElementById('catalogProductsGrid').before(box); }
+    box.textContent = count > 0 ? 'Sebagian produk sementara tidak tersedia. Hubungi toko jika produk yang dicari belum terlihat.' : '';
+    box.hidden = !(count > 0);
+  }
+
   function initCustomerApp() {
     safeRun('getInitialData', function(res) {
       if (res.success) {
+        showCatalogNotice_(res.catalogWarnings || 0);
         settingsState = res.settings || {};
         categoriesState = res.categories || [];
         brandsState = res.brands || [];
@@ -404,7 +414,9 @@
     if (!el) return;
 
     if (url && String(url).trim() !== '' && String(url).trim() !== '#') {
-      el.href = String(url).trim();
+      const safe = safeExternalUrl(url);
+      if (!safe) { el.classList.add('hidden'); el.removeAttribute('href'); return; }
+      el.href = safe;
       el.classList.remove('hidden');
     } else if (url === '#') {
       el.href = '#';
@@ -423,31 +435,52 @@
       .replace(/'/g, '&#039;');
   }
 
-  function formatImageUrl(url) {
-    if (!url || !String(url).trim()) {
-      return 'https://placehold.co/200x200/f1f5f9/94a3b8?text=No+Image';
+  function safeExternalUrl(value) {
+    try {
+      const url = new URL(String(value || '').trim());
+      if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) return '';
+      url.protocol = 'https:';
+      return url.href;
+    } catch (_) { return ''; }
+  }
+
+  function formatImageUrl(value) {
+    const fallback = 'https://placehold.co/200x200/f1f5f9/94a3b8?text=No+Image';
+    const safe = safeExternalUrl(value); if (!safe) return fallback;
+    const url = new URL(safe);
+    if (['drive.google.com','docs.google.com'].includes(url.hostname)) {
+      const match = url.pathname.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      const id = match ? match[1] : url.searchParams.get('id');
+      if (id && /^[a-zA-Z0-9_-]+$/.test(id)) return 'https://lh3.googleusercontent.com/d/' + id;
     }
-    let str = String(url).trim();
-    let gDriveMatch = str.match(/\/file\/d\/([^\/]+)/) || str.match(/id=([^&]+)/);
-    if (gDriveMatch && (str.includes('drive.google.com') || str.includes('docs.google.com'))) {
-      return 'https://lh3.googleusercontent.com/d/' + gDriveMatch[1];
-    }
-    return str;
+    return safe;
+  }
+
+  function node_(tag, classes, text) {
+    const node = document.createElement(tag); node.className = classes || '';
+    if (text !== undefined) node.textContent = String(text); return node;
+  }
+
+  function image_(url, classes, alt) {
+    const img = node_('img', classes); img.src = formatImageUrl(url); img.alt = alt || '';
+    img.loading = 'lazy'; img.onerror = function() { this.onerror = null; this.src = formatImageUrl(''); };
+    return img;
   }
 
   function renderBanners(banners) {
-    const slider = document.getElementById('bannerSlider');
-    if (!banners || banners.length === 0) {
-      slider.innerHTML = '<div class="w-full bg-slate-200 h-28 rounded-2xl flex items-center justify-center text-xs text-slate-500">Toko Abangda Promo</div>';
-      return;
+    const slider = document.getElementById('bannerSlider'); if (!slider) return;
+    slider.replaceChildren();
+    if (!banners || !banners.length) {
+      slider.append(node_('div','w-full bg-slate-200 h-28 rounded-2xl flex items-center justify-center text-xs text-slate-500','Toko Abangda Promo')); return;
     }
-    let html = '';
     banners.forEach(function(b) {
-      html += '<div class="min-w-full snap-center bg-slate-800 h-36 rounded-2xl overflow-hidden relative shadow-sm">';
-      html += '<img alt="' + escapeHtml(b.keterangan || 'Banner toko') + '" src="' + formatImageUrl(b.url_gambar) + '" onerror="this.onerror=null; this.src=\'https://placehold.co/600x200/f1f5f9/94a3b8?text=Banner+Gagal\';" class="w-full h-full object-cover opacity-90">';
-      html += '</div>';
+      const tile = node_('div','min-w-full snap-center bg-slate-800 h-36 rounded-2xl overflow-hidden relative shadow-sm');
+      const image = image_(b.url_gambar,'w-full h-full object-cover opacity-90',b.keterangan || 'Banner toko');
+      const href = safeExternalUrl(b.link);
+      if (href) { const link = node_('a','block w-full h-full'); link.href = href; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.append(image); tile.append(link); }
+      else tile.append(image);
+      slider.append(tile);
     });
-    slider.innerHTML = html;
   }
 
   function renderCategories(categories) {
@@ -489,27 +522,23 @@
   }
 
   function renderBrands(brands) {
-    const sidebarBrandList = document.getElementById('sidebarBrandList');
-    if (!sidebarBrandList) return;
-
-    if (!brands || brands.length === 0) {
-      sidebarBrandList.innerHTML = '<p class="text-[10px] text-slate-400 px-3 py-1">Belum ada brand terdaftar.</p>';
-      return;
-    }
-
-    let html = '';
+    const list = document.getElementById('sidebarBrandList'); if (!list) return;
+    list.replaceChildren();
+    if (!brands || !brands.length) { list.append(node_('p','text-[10px] text-slate-400 px-3 py-1','Belum ada brand terdaftar.')); return; }
     brands.forEach(function(b) {
-      html += '<button onclick="navFromSidebar(\'katalog\', null, \'' + escapeQuotes(b.nama_brand) + '\')" class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs text-slate-700 hover:bg-slate-100 transition group">';
-      html += '<span class="flex items-center gap-2.5"><i class="fa-solid fa-tag text-[10px] text-brand-blue group-hover:scale-110 transition-transform"></i> ' + b.nama_brand + '</span>';
-      html += '<i class="fa-solid fa-chevron-right text-[10px] text-slate-300 group-hover:text-brand-blue transition"></i>';
-      html += '</button>';
+      const button = node_('button','w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs text-slate-700 hover:bg-slate-100 transition group');
+      button.type = 'button'; button.append(node_('span','min-w-0 whitespace-normal break-words',b.nama_brand));
+      button.append(node_('i','fa-solid fa-chevron-right text-[10px] text-slate-300'));
+      button.onclick = function() { navFromSidebar('katalog',null,b.nama_brand); };
+      list.append(button);
     });
-
-    sidebarBrandList.innerHTML = html;
   }
 
   function loadProducts(isAppend) {
-    if (isLoadingProducts) return;
+    if (isAppend && isLoadingProducts) return;
+    const version = ++catalogRequestVersion;
+    const requestedPage = isAppend ? currentPage : 1;
+    currentPage = requestedPage;
     isLoadingProducts = true;
 
     const searchInput = document.getElementById('searchInput');
@@ -533,10 +562,12 @@
     }
 
     safeRun('getProducts', function(res) {
+      if (version !== catalogRequestVersion) return;
       isLoadingProducts = false;
       if (loadingIndicator) loadingIndicator.classList.add('hidden');
 
       if (res.success) {
+        showCatalogNotice_(res.catalogWarnings || 0);
         if (!isAppend) {
           renderCatalogProducts(res.data, false);
         } else {
@@ -556,7 +587,9 @@
           }
         }
       }
-    }, searchVal, activeCategoryFilter, activeBrandFilter, currentPage, limitPage);
+      if (!res.success) { showDataError(res.message || 'Katalog belum dapat dimuat.'); if (isAppend) currentPage = Math.max(1, requestedPage - 1); }
+      if (res.success) { const box = document.getElementById('dataLoadError'); if (box) box.remove(); }
+    }, searchVal, activeCategoryFilter, activeBrandFilter, requestedPage, limitPage);
   }
 
   function renderHomeProducts(products) {
@@ -683,6 +716,7 @@
 
   // LOGIKA PENCARIAN REAL-TIME & SARAN (LIVE AUTO-SUGGESTION)
   function handleSearchInput() {
+    suggestionRequestVersion++;
     const input = document.getElementById('searchInput');
     const clearBtn = document.getElementById('clearSearchBtn');
     const suggestionsBox = document.getElementById('searchSuggestionsBox');
@@ -738,6 +772,8 @@
   }
 
   function clearSearchInput() {
+    suggestionRequestVersion++;
+    clearTimeout(searchDebounceTimer);
     const input = document.getElementById('searchInput');
     const clearBtn = document.getElementById('clearSearchBtn');
     const suggestionsBox = document.getElementById('searchSuggestionsBox');
@@ -755,10 +791,12 @@
   }
 
   function fetchSearchSuggestions(keyword) {
+    const version = ++suggestionRequestVersion;
     const box = document.getElementById('searchSuggestionsBox');
     if (!box) return;
 
     safeRun('getProducts', function(res) {
+      if (version !== suggestionRequestVersion) return;
       if (res.success && res.data && res.data.length > 0) {
         renderSearchSuggestions(res.data, keyword);
       } else {
@@ -769,36 +807,18 @@
   }
 
   function renderSearchSuggestions(items, query) {
-    const box = document.getElementById('searchSuggestionsBox');
-    if (!box) return;
-
-    let html = '<div class="p-2 space-y-1">';
-    html += '<p class="text-[9px] font-bold uppercase tracking-wider text-slate-400 px-2 py-1">Saran Produk</p>';
-
+    const box = document.getElementById('searchSuggestionsBox'); if (!box) return;
+    const host = node_('div','p-2 space-y-1'); host.append(node_('p','text-[9px] font-bold uppercase tracking-wider text-slate-400 px-2 py-1','Saran Produk'));
     items.forEach(function(item) {
-      let imgUrl = formatImageUrl(item.url_foto);
-      let regex = new RegExp('(' + escapeRegExp(query) + ')', 'gi');
-      let highlightedName = escapeHtml(item.nama).replace(regex, '<span class="text-brand-blue font-bold underline">$1</span>');
-
-      html += '<div onclick="selectSearchSuggestion(\'' + escapeQuotes(item.nama) + '\', \'' + item.id_produk + '\')" class="flex items-center justify-between p-2 hover:bg-slate-50 rounded-xl cursor-pointer transition group">';
-      html += '<div class="flex items-center gap-2.5 min-w-0">';
-      html += '<img src="' + imgUrl + '" onerror="this.onerror=null; this.src=\'https://placehold.co/100x100/f1f5f9/94a3b8?text=Produk\';" class="w-8 h-8 rounded-lg object-cover border border-slate-100 flex-shrink-0 group-hover:scale-105 transition-transform">';
-      html += '<div class="min-w-0">';
-      html += '<p class="text-xs text-slate-800 truncate leading-tight">' + highlightedName + '</p>';
-      if (item.brand) {
-        html += '<p class="text-[9px] text-slate-400 leading-tight mt-0.5">' + escapeHtml(item.brand) + '</p>';
-      }
-      html += '</div>';
-      html += '</div>';
-      html += '<div class="text-right flex-shrink-0 pl-2">';
-      html += '<p class="text-[11px] font-bold text-brand-blue">Rp ' + parseFloat(item.harga).toLocaleString('id-ID') + '</p>';
-      html += '</div>';
-      html += '</div>';
+      const button = node_('button','w-full flex items-center justify-between p-2 hover:bg-slate-50 rounded-xl cursor-pointer transition group'); button.type = 'button';
+      const left = node_('span','flex items-center gap-2.5 min-w-0'); left.append(image_(item.url_foto,'w-8 h-8 rounded-lg object-cover',item.nama));
+      const name = node_('span','text-xs text-slate-700 text-left min-w-0');
+      const parts = query ? String(item.nama).split(new RegExp('(' + escapeRegExp(query) + ')','gi')) : [String(item.nama)];
+      parts.forEach(function(part,i) { if (i % 2) name.append(node_('span','text-brand-blue font-bold underline',part)); else name.append(document.createTextNode(part)); });
+      left.append(name); button.append(left,node_('span','text-[10px] font-bold text-brand-blue','Rp ' + Number(item.harga).toLocaleString('id-ID')));
+      button.onclick = function() { selectSearchSuggestion(item.nama,item.id_produk); }; host.append(button);
     });
-
-    html += '</div>';
-    box.innerHTML = html;
-    box.classList.remove('hidden');
+    box.replaceChildren(host); box.classList.remove('hidden');
   }
 
   function escapeRegExp(string) {
@@ -806,6 +826,8 @@
   }
 
   function selectSearchSuggestion(productName, productId) {
+    suggestionRequestVersion++;
+    clearTimeout(searchDebounceTimer);
     const input = document.getElementById('searchInput');
     const box = document.getElementById('searchSuggestionsBox');
     const clearBtn = document.getElementById('clearSearchBtn');
@@ -841,7 +863,9 @@
   }
 
   function openProductDetail(productId) {
+    const version = ++modalRequestVersion;
     safeRun('getProductById', function(res) {
+      if (version !== modalRequestVersion) return;
       if (!res.success || !res.product) { showToast(res.message || 'Produk tidak ditemukan.'); return; }
       selectedModalProduct = res.product;
       productCache.set(res.product.id_produk, res.product);
@@ -862,6 +886,7 @@
   }
 
   function closeProductModal() {
+    modalRequestVersion++;
     document.getElementById('productDetailModal').classList.add('hidden');
   }
 
@@ -947,57 +972,30 @@
       return;
     }
 
-    let html = '';
-    let checkoutHtml = '';
-    let total = 0;
-
+    const cartNodes = document.createDocumentFragment(), reviewNodes = document.createDocumentFragment();
     cartState.forEach(function(item, idx) {
-      const wholesaleHint = item.min_beli_grosir > 0 && item.harga_grosir > 0
-        ? (item.qty >= item.min_beli_grosir
-          ? 'Harga grosir aktif'
-          : 'Tambahkan ' + (item.min_beli_grosir - item.qty) + ' lagi untuk dapat harga grosir')
-        : '';
-      let subtotal = item.harga * item.qty;
-      total += subtotal;
-      let imgUrl = formatImageUrl(item.url_foto);
-
-      html += '<div class="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between gap-2.5">';
-      html += '<div class="flex items-center gap-2.5 min-w-0">';
-      html += '<div class="w-12 h-12 rounded-xl bg-slate-100 overflow-hidden flex-shrink-0 border border-slate-100 shadow-inner">';
-      html += '<img src="' + imgUrl + '" onerror="this.onerror=null; this.src=\'https://placehold.co/100x100/f1f5f9/94a3b8?text=Produk\';" class="w-full h-full object-cover">';
-      html += '</div>';
-      html += '<div class="min-w-0">';
-      if (item.brand) {
-        html += '<p class="text-[9px] font-bold text-brand-blue uppercase leading-tight">' + item.brand + '</p>';
-      }
-      html += '<h4 class="font-semibold text-xs text-slate-800 truncate leading-tight mt-0.5">' + item.nama + '</h4>';
-      html += '<p class="text-[11px] text-brand-blue font-bold mt-0.5">Rp ' + item.harga.toLocaleString('id-ID') + '</p>';
-      if (wholesaleHint) html += '<p class="text-[10px] text-emerald-700 whitespace-normal break-words mt-0.5">' + wholesaleHint + '</p>';
-      html += '</div>';
-      html += '</div>';
-      html += '<div class="flex items-center gap-1.5 flex-shrink-0">';
-      html += '<button onclick="changeCartQty(' + idx + ', -1)" class="w-6 h-6 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold transition flex items-center justify-center active:scale-95">-</button>';
-      html += '<span class="text-xs font-bold w-5 text-center">' + item.qty + '</span>';
-      html += '<button onclick="changeCartQty(' + idx + ', 1)" class="w-6 h-6 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold transition flex items-center justify-center active:scale-95">+</button>';
-      html += '<button onclick="removeCartItem(' + idx + ')" class="w-6 h-6 flex items-center justify-center text-red-500 hover:text-red-700 text-xs ml-0.5 transition" title="Hapus"><i class="fa-solid fa-trash"></i></button>';
-      html += '</div>';
-      html += '</div>';
-
-      checkoutHtml += '<div class="flex items-center justify-between gap-2 py-1.5 border-b border-slate-50 last:border-0">';
-      checkoutHtml += '<div class="flex items-center gap-2.5 min-w-0">';
-      checkoutHtml += '<img src="' + imgUrl + '" onerror="this.onerror=null; this.src=\'https://placehold.co/100x100/f1f5f9/94a3b8?text=Produk\';" class="w-9 h-9 rounded-lg object-cover border border-slate-100 flex-shrink-0">';
-      checkoutHtml += '<div class="min-w-0">';
-      checkoutHtml += '<p class="text-xs font-medium text-slate-800 truncate">' + item.nama + (item.brand ? ' (' + item.brand + ')' : '') + '</p>';
-      checkoutHtml += '<p class="text-[10px] text-slate-400">' + item.qty + 'x @ Rp ' + item.harga.toLocaleString('id-ID') + '</p>';
-      if (wholesaleHint) checkoutHtml += '<p class="text-[10px] text-emerald-700 whitespace-normal break-words mt-0.5">' + wholesaleHint + '</p>';
-      checkoutHtml += '</div>';
-      checkoutHtml += '</div>';
-      checkoutHtml += '<span class="text-xs font-bold text-slate-700 flex-shrink-0">Rp ' + subtotal.toLocaleString('id-ID') + '</span>';
-      checkoutHtml += '</div>';
+      const hint = item.min_beli_grosir > 0 && item.harga_grosir > 0
+        ? (item.qty >= item.min_beli_grosir ? 'Harga grosir aktif' : 'Tambahkan ' + (item.min_beli_grosir-item.qty) + ' lagi untuk dapat harga grosir') : '';
+      const row = node_('div','bg-white p-3 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between gap-2.5');
+      const left = node_('div','flex items-center gap-2.5 min-w-0');
+      left.append(image_(item.url_foto,'w-12 h-12 rounded-xl object-cover flex-shrink-0',item.nama));
+      const detail = node_('div','min-w-0');
+      if (item.brand) detail.append(node_('p','text-[9px] font-bold text-brand-blue uppercase leading-tight',item.brand));
+      detail.append(node_('h4','font-semibold text-xs text-slate-800 truncate leading-tight mt-0.5',item.nama),node_('p','text-[11px] text-brand-blue font-bold mt-0.5','Rp '+item.harga.toLocaleString('id-ID')));
+      if (hint) detail.append(node_('p','text-[10px] text-emerald-700 whitespace-normal break-words mt-0.5',hint));
+      left.append(detail);row.append(left);
+      const controls = node_('div','flex items-center gap-1.5 flex-shrink-0');
+      function quantityButton(text,delta) { const button = node_('button','w-6 h-6 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold transition flex items-center justify-center active:scale-95',text);button.type='button';button.setAttribute('aria-label',(delta > 0 ? 'Tambah ' : 'Kurangi ')+item.nama);button.onclick=function(){changeCartQty(idx,delta);};return button; }
+      controls.append(quantityButton('-',-1),node_('span','text-xs font-bold w-5 text-center',item.qty),quantityButton('+',1));
+      const remove = node_('button','w-6 h-6 flex items-center justify-center text-red-500 text-xs ml-0.5'); remove.type='button';remove.title='Hapus';remove.setAttribute('aria-label','Hapus '+item.nama);remove.append(node_('i','fa-solid fa-trash'));remove.onclick=function(){removeCartItem(idx);};controls.append(remove);row.append(controls);cartNodes.append(row);
+      const review = node_('div','flex items-center justify-between gap-2 py-1.5 border-b border-slate-50 last:border-0');
+      const reviewLeft=node_('div','flex items-center gap-2.5 min-w-0');reviewLeft.append(image_(item.url_foto,'w-9 h-9 rounded-lg object-cover border border-slate-100 flex-shrink-0',item.nama));
+      const reviewDetail=node_('div','min-w-0');reviewDetail.append(node_('p','text-xs font-medium text-slate-800 truncate',item.nama+(item.brand?' ('+item.brand+')':'')),node_('p','text-[10px] text-slate-400',item.qty+'x @ Rp '+item.harga.toLocaleString('id-ID')));
+      if(hint)reviewDetail.append(node_('p','text-[10px] text-emerald-700 whitespace-normal break-words mt-0.5',hint));
+      reviewLeft.append(reviewDetail);review.append(reviewLeft,node_('span','text-xs font-bold text-slate-700 flex-shrink-0','Rp '+(item.harga*item.qty).toLocaleString('id-ID')));reviewNodes.append(review);
     });
-
-    container.innerHTML = html;
-    if (checkoutReview) checkoutReview.innerHTML = checkoutHtml;
+    container.replaceChildren(cartNodes);
+    if (checkoutReview) checkoutReview.replaceChildren(reviewNodes);
 
     updateCheckoutTotals();
     summary.classList.remove('hidden');
@@ -1134,6 +1132,27 @@
     }
   }
 
+// Persist only a random attempt key. Keep it across reload/edit until a confirmed result.
+let checkoutAttempt = null;
+function checkoutRequestId_(payload) {
+  if (!checkoutAttempt) { try { checkoutAttempt = JSON.parse(localStorage.getItem('tokoAbangda.checkout.v1') || 'null'); } catch (_) {} }
+  if (!checkoutAttempt || !/^[a-f0-9]{64}$/.test(checkoutAttempt.key)) {
+    const bytes = new Uint8Array(32); crypto.getRandomValues(bytes);
+    checkoutAttempt = {key:Array.from(bytes,function(n) { return n.toString(16).padStart(2,'0'); }).join('')};
+  }
+  try { localStorage.setItem('tokoAbangda.checkout.v1', JSON.stringify(checkoutAttempt)); } catch (_) {}
+  return checkoutAttempt.key;
+}
+
+function showPreviousCheckout_(id) {
+  let box = document.getElementById('previousCheckoutNotice');
+  if (!box) { box=node_('div','bg-sky-50 border border-sky-200 p-3 rounded-xl text-xs space-y-2');box.id='previousCheckoutNotice';document.getElementById('btnSubmitCheckout').before(box); }
+  const text=node_('p','','Pesanan sebelumnya sudah tercatat: '+id+'. Data baru belum disimpan.');
+  const track=node_('button','text-brand-blue font-bold mr-3','Lacak pesanan sebelumnya');track.type='button';track.onclick=function(){clearTrackingResult();document.getElementById('trackOrderIdInput').value=id;switchTab('lacak');};
+  const reset=node_('button','text-brand-blue font-bold','Mulai pesanan baru');reset.type='button';reset.onclick=function(){checkoutAttempt=null;try{localStorage.removeItem('tokoAbangda.checkout.v1');}catch(_){}box.remove();showToast('Silakan periksa data lalu kirim sebagai pesanan baru.');};
+  box.replaceChildren(text,track,reset);
+}
+
 function submitCheckout() {
     if (!cartReadyForChanges()) return;
   if (!cartState.length) {
@@ -1157,6 +1176,7 @@ function submitCheckout() {
     items: cartState.map(function(item) { return { id: item.id, qty: item.qty }; }),
     kode_kupon: appliedCoupon ? appliedCoupon.code : ''
   };
+  payload.request_id = checkoutRequestId_(payload);
   cartCheckoutPending = true;
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-circle-notch animate-spin"></i> MENYIMPAN PESANAN...';
@@ -1165,9 +1185,12 @@ function submitCheckout() {
     btn.disabled = false;
     btn.innerHTML = '<i class="fa-brands fa-whatsapp text-lg"></i><span>Lanjut ke WhatsApp</span>';
     if (!res.success) {
+      if(res.existingOrderId)showPreviousCheckout_(res.existingOrderId);
       showToast(res.message || 'Pesanan belum berhasil disimpan.');
       return;
     }
+    checkoutAttempt = null;
+    try { localStorage.removeItem('tokoAbangda.checkout.v1'); localStorage.setItem('tokoAbangda.lastOrder',res.orderId); } catch (_) {}
     const summary = res.summary;
     document.getElementById('confirmOrderId').innerText = res.orderId;
     let html = '<p><strong>Nama:</strong> ' + escapeHtml(summary.nama_pemesan) + '</p>';

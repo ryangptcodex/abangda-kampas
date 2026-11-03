@@ -18,9 +18,9 @@ const KEY = 'tokoAbangda.cart.v1';
       window.google={script:{run:{withSuccessHandler(success){return {withFailureHandler(failure){return new Proxy({}, {get(_,method){return (...args)=>window.__cartServer(method,args).then(success,failure).finally(()=>window.finishedRPCs++);}});}};}}}};
     </script>`;
     const root = path.join(__dirname,'..');
-    const html = fs.readFileSync(path.join(root,'index.html'),'utf8')
+    const html = fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/<\?!= include\('css'\);?\s*\?>/, '')
       .replace(/<\?!= include\('js'\);?\s*\?>/,()=>bridge+fs.readFileSync(path.join(root,'js.html'),'utf8'))
-      .replace('</head>','<style>'+fs.readFileSync(path.join(__dirname,'fixtures','tailwind.css'),'utf8')+'</style></head>');
+      .replace('</head>',fs.readFileSync(path.join(root,'css.html'),'utf8')+'</head>');
     async function configure(ctx) {
       ctx.on('page',p=>{p.setDefaultTimeout(10000);p.on('pageerror',e=>errors.push(e.message));});
       await ctx.route('https://**/*',r=>r.abort());

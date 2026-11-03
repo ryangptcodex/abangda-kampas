@@ -17,7 +17,7 @@ const {fixture}=require('./helpers/apps-script.cjs');
   });
   const bridge=`<script>window.finishedRPCs=0;window.google={script:{run:{withSuccessHandler(success){return {withFailureHandler(failure){return new Proxy({}, {get(_,method){return (...args)=>window.__shopServer(method,args).then(success,failure).finally(()=>window.finishedRPCs++);}});}};}}}};</script>`;
   const root=path.join(__dirname,'..');
-  let html=fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/<\?!= include\('js'\);?\s*\?>/,()=>bridge+fs.readFileSync(path.join(root,'js.html'),'utf8')).replace('</head>','<style>'+fs.readFileSync(path.join(__dirname,'fixtures','tailwind.css'),'utf8')+'</style></head>');
+  let html=fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/<\?!= include\('css'\);?\s*\?>/, '').replace(/<\?!= include\('js'\);?\s*\?>/,()=>bridge+fs.readFileSync(path.join(root,'js.html'),'utf8')).replace('</head>',fs.readFileSync(path.join(root,'css.html'),'utf8')+'</head>');
   await page.route('https://**/*',r=>r.abort());
   await page.route('http://toko-grosir.test/**',r=>r.fulfill({contentType:'text/html',body:html}));
   await page.goto('http://toko-grosir.test/');

@@ -3,7 +3,68 @@
  * Google Apps Script Backend Engine
  */
 
-const DEFAULT_WHATSAPP_NUMBER = '6282331463166';
+
+// Cache budgets are a best-effort application guard, not a network-level firewall.
+const PUBLIC_LIMITS = {catalog:600,tracking:120,coupon:120,checkoutAttempts:120,newOrders:60,phoneOrders:5};
+function consumeBudget_(key, limit, seconds, alreadyLocked) {
+  const lock = alreadyLocked ? null : LockService.getScriptLock(); let locked = false;
+  try {
+    if (lock) { if (!lock.tryLock(15000)) throw new Error('Toko sedang sibuk. Coba kembali sebentar lagi.'); locked = true; }
+    const cache = CacheService.getScriptCache();
+    const bucket = Math.floor(Date.now() / (seconds * 1000));
+    const cacheKey = 'budget:v1:' + key + ':' + bucket;
+    const used = Number(cache.get(cacheKey) || 0);
+    if (used >= limit) throw new Error('Terlalu banyak permintaan. Tunggu beberapa menit sebelum mencoba lagi.');
+    cache.put(cacheKey,String(used+1),seconds);
+  } finally { if (locked) lock.releaseLock(); }
+}
+
+function sha256_(value) {
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, value, Utilities.Charset.UTF_8)
+    .map(function(byte) { return (byte & 255).toString(16).padStart(2, '0'); }).join('');
+}
+
+function ensureOrderColumns_(sheet) {
+  const extra = ['request_id','request_hash','checkout_summary','wa_target','subtotal','diskon','kode_kupon'];
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+  extra.forEach(function(name) {
+    if (headers.includes(name)) return;
+    if (sheet.getMaxColumns() <= headers.length) sheet.insertColumnAfter(sheet.getMaxColumns());
+    sheet.getRange(1, headers.length + 1).setValue(name); headers.push(name);
+  });
+  return headers;
+}
+
+function replayCheckout_(sheet, requestId, requestHash) {
+  const rows = sheet.getDataRange().getValues(); const headers = rows[0] || [];
+  const key = headers.indexOf('request_id'); if (key < 0) return null;
+  const row = rows.slice(1).find(function(row) { return row[key] === requestId; });
+  if (!row) return null;
+  function field(name) { return row[headers.indexOf(name)]; }
+  if (field('request_hash') !== requestHash) {
+    const error = new Error('Pesanan sebelumnya sudah tercatat. Data baru belum disimpan.'); error.existingOrderId = String(field('id_pesanan')); throw error;
+  }
+  const summary = JSON.parse(field('checkout_summary'));
+  return checkoutResponse_(String(field('id_pesanan')), String(field('tgl_pesan')), summary, String(field('wa_target')));
+}
+
+function checkoutResponse_(orderId, dateText, summary, waTarget) {
+  let message = '*PESANAN BARU - TOKO ABANGDA*\n';
+    message += '*ID Pesanan:* ' + orderId + '\n*Tanggal:* ' + dateText + '\n';
+    message += '_Simpan ID pesanan ini untuk melacak pesanan._\n';
+    message += '*Nama:* ' + summary.nama_pemesan + '\n*No. WA:* ' + summary.no_whatsapp + '\n';
+    message += '*Pengiriman:* ' + summary.tipe_pengiriman + '\n';
+    if (summary.alamat) message += '*Alamat:* ' + summary.alamat + '\n';
+    message += '*Catatan:* ' + (summary.catatan || '-') + '\n\n*RINCIAN ITEM:*\n';
+    summary.items.forEach(function(item) {
+      message += '• ' + item.nama + (item.brand ? ' [' + item.brand + ']' : '') + ' (' + item.qty + 'x) = Rp ' + (item.harga * item.qty).toLocaleString('id-ID') + '\n';
+    });
+    message += '\nSubtotal: Rp ' + summary.subtotal.toLocaleString('id-ID') + '\n';
+    if (summary.kode_kupon) message += 'Diskon (' + summary.kode_kupon + '): -Rp ' + summary.diskon.toLocaleString('id-ID') + '\n';
+    message += '*Estimasi total produk: Rp ' + summary.total_harga.toLocaleString('id-ID') + '*\n';
+    message += '_Mohon konfirmasi stok, ongkir jika ada, total akhir, dan cara pembayaran. Terima kasih!_';
+    return { success: true, orderId: orderId, waUrl: 'https://wa.me/' + waTarget + '?text=' + encodeURIComponent(message), summary: summary };
+}
 
 function doGet() {
   const template = HtmlService.createTemplateFromFile('index');
@@ -12,7 +73,7 @@ function doGet() {
     .setTitle('Toko Abangda - Kebutuhan Harian Lebih Mudah')
     .addMetaTag(
       'viewport',
-      'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'
+      'width=device-width, initial-scale=1.0'
     )
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -86,12 +147,47 @@ function productFromRow_(row, headers) {
     deskripsi:String(field('deskripsi')), url_foto:String(field('url_foto'))};
 }
 
+// Quarantine incomplete/ambiguous products while keeping the rest of the catalog usable.
+function readProductCatalog_(sheet) {
+  if (!sheet) throw new Error('Sheet products tidak ditemukan.');
+  const rows = sheet.getDataRange().getValues(); const headers = rows[0] || [];
+  ['nama','harga'].forEach(function(field) { if (!headers.includes(field)) throw new Error('Kolom produk belum lengkap: ' + field); });
+  const groups = new Map(), products = new Map(), issues = new Map(), warnings = [], featured = [];
+  rows.slice(1).forEach(function(row,i) {
+    if (row.every(function(value) { return value == null || String(value).trim() === ''; })) return;
+    const id = productKeyFromRow_(row,headers);
+    if (!id) { warnings.push({row:i+2,message:'Nama produk belum diisi.'}); return; }
+    if (!groups.has(id)) groups.set(id,[]); groups.get(id).push({row:row,index:i+2});
+  });
+  groups.forEach(function(entries,id) {
+    if (entries.length > 1) {
+      const message = 'Nama produk dan brand duplikat. Bedakan nama atau varian produk.';
+      issues.set(id,message); entries.forEach(function(entry) { warnings.push({row:entry.index,message:message}); }); return;
+    }
+    const entry = entries[0];
+    try {
+      const product = productFromRow_(entry.row,headers); products.set(id,product);
+      const flag = headers.indexOf('is_unggulan');
+      if (flag >= 0 && String(entry.row[flag]).trim().toUpperCase() === 'YA') featured.push(product);
+    } catch (error) { issues.set(id,error.message); warnings.push({row:entry.index,message:error.message}); }
+  });
+  return {products:products,issues:issues,warnings:warnings,featured:featured};
+}
+
+function checkProductData_() {
+  try {
+    const catalog = readProductCatalog_(SpreadsheetApp.getActiveSpreadsheet().getSheetByName('products'));
+    SpreadsheetApp.getUi().alert(catalog.warnings.length ? catalog.warnings.slice(0,50).map(function(issue) { return 'Baris '+issue.row+': '+issue.message; }).join('\n') : 'Data produk siap. Tidak ada baris bermasalah.');
+  } catch (error) { SpreadsheetApp.getUi().alert(error.message || String(error)); }
+}
+
 function unitPriceForQuantity_(product, qty) {
   return product.min_beli_grosir > 0 && qty >= product.min_beli_grosir ? product.harga_grosir : product.harga;
 }
 
 function getInitialData() {
   try {
+    consumeBudget_('catalog', PUBLIC_LIMITS.catalog, 60);
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     ensureWholesaleColumns_(ss);
 
@@ -109,7 +205,7 @@ function getInitialData() {
         for (let i = 1; i < setData.length; i++) {
           const key = String(setData[i][keyIdx]).trim();
 
-          if (key) {
+          if (['nama_toko','alamat_toko','no_telepon','no_whatsapp','link_facebook','link_instagram','link_youtube','link_tiktok'].includes(key)) {
             settings[key] = setData[i][valueIdx];
           }
         }
@@ -180,24 +276,15 @@ function getInitialData() {
       }
     }
 
-    const prdSheet = ss.getSheetByName('products');
-    const featuredProducts = [];
-    if (prdSheet && prdSheet.getLastRow() > 1) {
-      const rows = prdSheet.getDataRange().getValues();
-      const headers = rows[0];
-      const flag = headers.indexOf('is_unggulan');
-      rows.slice(1).forEach(function(row) {
-        if (flag >= 0 && String(row[flag]).trim().toUpperCase() === 'YA') featuredProducts.push(productFromRow_(row, headers));
-      });
-    }
-
+    const catalog = readProductCatalog_(ss.getSheetByName('products'));
+    const featuredProducts = catalog.featured;
     return {
       success: true,
       settings: settings,
       categories: categories,
       brands: brands,
       banners: banners,
-      featuredProducts: featuredProducts
+      featuredProducts: featuredProducts, catalogWarnings:catalog.warnings.length
     };
   } catch (error) {
     return {
@@ -209,129 +296,35 @@ function getInitialData() {
 
 function getProducts(searchVal, categoryId, brandVal, page, limit) {
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName('products');
-
-    if (!sheet || sheet.getLastRow() <= 1) {
-      return {
-        success: true,
-        data: [],
-        totalPages: 0,
-        currentPage: 1,
-        totalItems: 0
-      };
-    }
-
-    const rawData = sheet.getDataRange().getDisplayValues();
-    const rawDataValues = sheet.getDataRange().getValues();
-    const headers = rawData[0];
-    const namaIdx = headers.indexOf('nama');
-    const catIdx = headers.indexOf('id_kategori');
-    const brandIdx = headers.indexOf('brand');
-    const descIdx = headers.indexOf('deskripsi');
-
-    const search = searchVal
-      ? String(searchVal).toLowerCase().trim()
-      : '';
-    const cat = categoryId || 'ALL';
-    const brand = brandVal || 'ALL';
-
-    const filtered = [];
-
-    for (let i = 1; i < rawData.length; i++) {
-      const row = rawData[i];
-      const pNama = namaIdx !== -1
-        ? String(row[namaIdx]).toLowerCase()
-        : '';
-      const pDesc = descIdx !== -1
-        ? String(row[descIdx]).toLowerCase()
-        : '';
-      const pCat = catIdx !== -1 ? String(row[catIdx]) : '';
-      const pBrand = brandIdx !== -1
-        ? String(row[brandIdx]).trim()
-        : '';
-
-      const matchSearch =
-        !search ||
-        pNama.includes(search) ||
-        pDesc.includes(search) ||
-        pBrand.toLowerCase().includes(search);
-
-      const matchCat = cat === 'ALL' || pCat === cat;
-
-      const matchBrand =
-        brand === 'ALL' ||
-        pBrand.toLowerCase() === String(brand).toLowerCase().trim();
-
-      if (matchSearch && matchCat && matchBrand) {
-        filtered.push(productFromRow_(rawDataValues[i], headers));
-      }
-    }
-
-    const pageNum = parseInt(page, 10) || 1;
-    const limitNum = parseInt(limit, 10) || 6;
-    const totalItems = filtered.length;
-    const totalPages = Math.ceil(totalItems / limitNum) || 1;
-    const offset = (pageNum - 1) * limitNum;
-    const paginatedData = filtered.slice(offset, offset + limitNum);
-
-    return {
-      success: true,
-      data: paginatedData,
-      totalPages: totalPages,
-      currentPage: pageNum,
-      totalItems: totalItems
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: error.toString()
-    };
-  }
+    consumeBudget_('catalog', PUBLIC_LIMITS.catalog, 60);
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('products');
+    const catalog = readProductCatalog_(sheet);
+    const search = String(searchVal || '').trim().toLowerCase().slice(0,100);
+    const category = String(categoryId || 'ALL').trim(), brand = String(brandVal || 'ALL').trim();
+    const filtered = Array.from(catalog.products.values()).filter(function(product) {
+      return (!search || [product.nama,product.deskripsi,product.brand].some(function(value) { return value.toLowerCase().includes(search); }))
+        && (category === 'ALL' || product.id_kategori.trim() === category)
+        && (brand === 'ALL' || product.brand.trim().toLowerCase() === brand.toLowerCase());
+    });
+    const pageNum = Math.max(1, parseInt(page,10) || 1), limitNum = Math.max(1,Math.min(100,parseInt(limit,10) || 6));
+    return {success:true,data:filtered.slice((pageNum-1)*limitNum,pageNum*limitNum),totalItems:filtered.length,totalPages:Math.max(1,Math.ceil(filtered.length/limitNum)),currentPage:pageNum,catalogWarnings:catalog.warnings.length};
+  } catch(error) { return {success:false,message:error.message || String(error)}; }
 }
 
 function getProductById(productId) {
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName('products');
-
-    if (!sheet) {
-      return {
-        success: false,
-        message: 'Sheet produk tidak ditemukan.'
-      };
-    }
-
-    const rawData = sheet.getDataRange().getDisplayValues();
-    const rawDataValues = sheet.getDataRange().getValues();
-    const headers = rawData[0];
-    const namaIdx = headers.indexOf('nama');
-    const brandIdx = headers.indexOf('brand');
-    const descIdx = headers.indexOf('deskripsi');
-
-    for (let i = 1; i < rawData.length; i++) {
-      if (
-        productKeyFromRow_(rawDataValues[i], headers) === String(productId).trim()
-      ) {
-        return { success: true, product: productFromRow_(rawDataValues[i], headers) };
-      }
-    }
-
-    return {
-      success: false,
-      message: 'Produk tidak ditemukan.'
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: error.toString()
-    };
-  }
+    consumeBudget_('catalog', PUBLIC_LIMITS.catalog, 60);
+    const catalog = readProductCatalog_(SpreadsheetApp.getActiveSpreadsheet().getSheetByName('products'));
+    const id = String(productId || '').trim(); const product = catalog.products.get(id);
+    if (!product) throw new Error(catalog.issues.get(id) || 'Produk tidak ditemukan.');
+    return {success:true,product:product};
+  } catch(error) { return {success:false,message:error.message || String(error)}; }
 }
 
 // Read-only reconciliation of saved IDs/quantities against the current catalog.
 function getCartSnapshot(savedItems) {
   try {
+    consumeBudget_('catalog', PUBLIC_LIMITS.catalog, 60);
     if (!Array.isArray(savedItems) || savedItems.length > 100) {
       throw new Error('Keranjang tersimpan tidak valid.');
     }
@@ -350,25 +343,12 @@ function getCartSnapshot(savedItems) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss && ss.getSheetByName('products');
     if (!sheet) throw new Error('Sheet products tidak ditemukan.');
-    const rows = sheet.getDataRange().getValues();
-    const headers = rows[0] || [];
-    const columns = {};
-    ['nama', 'harga'].forEach(function(name) {
-      columns[name] = headers.indexOf(name);
-      if (columns[name] < 0) throw new Error('Kolom produk belum lengkap: ' + name);
-    });
-    const products = new Map();
-    rows.slice(1).forEach(function(row) {
-      const id = productKeyFromRow_(row, headers);
-      if (!wanted.has(id)) return;
-      if (products.has(id)) throw new Error('Nama produk dan brand duplikat di Sheets. Bedakan nama atau varian produk.');
-      products.set(id, row);
-    });
+    const catalog = readProductCatalog_(sheet);
     const items = [], adjustments = [];
     wanted.forEach(function(qty, id) {
-      const row = products.get(id);
-      if (!row) { adjustments.push({id: id, reason: 'removed'}); return; }
-      const product = productFromRow_(row, headers);
+      if (catalog.issues.has(id)) throw new Error(catalog.issues.get(id));
+      const product = catalog.products.get(id);
+      if (!product) { adjustments.push({id: id, reason: 'removed'}); return; }
       items.push({id:id, qty:qty, nama:product.nama, harga:unitPriceForQuantity_(product, qty),
         harga_normal:product.harga, harga_grosir:product.harga_grosir, min_beli_grosir:product.min_beli_grosir,
         brand:product.brand, url_foto:product.url_foto});
@@ -380,6 +360,11 @@ function getCartSnapshot(savedItems) {
 }
 
 function validateCoupon(couponCode, subtotal) {
+  try { consumeBudget_('coupon', PUBLIC_LIMITS.coupon, 60); return validateCoupon_(couponCode,subtotal); }
+  catch (error) { return {success:false,message:error.message || String(error)}; }
+}
+
+function validateCoupon_(couponCode, subtotal) {
   try {
     const code = String(couponCode || '').trim().toUpperCase();
     if (!code) throw new Error('Masukkan kode kupon!');
@@ -438,10 +423,14 @@ function createOrder(orderPayload) {
   let quotaRange = null;
   let previousQuota = null;
   let orderWritten = false;
+  let orderSheet = null, requestId = '', requestHash = '';
   try {
     if (!lock.tryLock(15000)) throw new Error('Toko sedang memproses pesanan lain. Silakan coba lagi.');
     locked = true;
+    consumeBudget_('checkout-attempts',PUBLIC_LIMITS.checkoutAttempts,60,true);
     const payload = orderPayload || {};
+    requestId = String(payload.request_id || '');
+    if (!/^[a-f0-9]{64}$/.test(requestId)) throw new Error('Muat ulang aplikasi sebelum membuat pesanan.');
     function text(value, max, label) {
       const result = String(value || '').trim();
       if (result.length > max) throw new Error(label + ' terlalu panjang.');
@@ -470,9 +459,9 @@ function createOrder(orderPayload) {
       if (!item || typeof item !== 'object') throw new Error('Item pesanan tidak valid.');
       const id = String(item.id || item.id_produk || '').trim();
       const qty = integer(item.qty, 'Jumlah produk');
-      if (!id || qty < 1) throw new Error('ID dan jumlah produk wajib valid.');
+      if (!id || id.length > 128 || qty < 1 || qty > 10000) throw new Error('ID dan jumlah produk wajib valid (maksimal 10.000 per produk).');
       const totalQty = (quantities.get(id) || 0) + qty;
-      if (!Number.isSafeInteger(totalQty)) throw new Error('Jumlah produk terlalu besar.');
+      if (!Number.isSafeInteger(totalQty) || totalQty > 10000) throw new Error('Jumlah produk terlalu besar.');
       quantities.set(id, totalQty);
     });
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -480,26 +469,20 @@ function createOrder(orderPayload) {
     const products = ss.getSheetByName('products');
     const orders = ss.getSheetByName('orders');
     if (!products || !orders) throw new Error('Sheet products atau orders tidak ditemukan.');
-    const rows = products.getDataRange().getValues();
-    const headers = rows[0] || [];
-    const idx = {};
-    ['nama', 'brand', 'harga'].forEach(function(field) {
-      idx[field] = headers.indexOf(field);
-      if (idx[field] < 0) throw new Error('Kolom produk belum lengkap: ' + field);
-    });
-    const byId = new Map();
-    rows.slice(1).forEach(function(row) {
-      const id = productKeyFromRow_(row, headers);
-      if (!id) return;
-      if (byId.has(id)) throw new Error('Nama produk dan brand duplikat di Sheets. Bedakan nama atau varian produk.');
-      byId.set(id, row);
-    });
+    orderSheet = orders;
+    requestHash = sha256_(JSON.stringify({name:name,phone:phone,delivery:delivery,address:delivery === 'Delivery' ? address : '',note:note,
+      items:Array.from(quantities.entries()).sort(function(a,b) { return a[0].localeCompare(b[0]); }),coupon:String(payload.kode_kupon || '').trim().toUpperCase()}));
+    const previous = replayCheckout_(orders, requestId, requestHash);
+    if (previous) return previous;
+    consumeBudget_('new-orders',PUBLIC_LIMITS.newOrders,600,true);
+    consumeBudget_('phone:' + sha256_(phone),PUBLIC_LIMITS.phoneOrders,600,true);
+
+    const catalog = readProductCatalog_(products);
     let subtotal = 0;
     const items = [];
     quantities.forEach(function(qty, id) {
-      const row = byId.get(id);
-      if (!row) throw new Error('Produk tidak ditemukan: ' + id);
-      const product = productFromRow_(row, headers);
+      const product = catalog.products.get(id);
+      if (!product) throw new Error(catalog.issues.get(id) || 'Produk tidak ditemukan. Pilih produk kembali.');
       const price = unitPriceForQuantity_(product, qty);
       subtotal += price * qty;
       if (!Number.isSafeInteger(subtotal)) throw new Error('Total pesanan terlalu besar.');
@@ -509,7 +492,7 @@ function createOrder(orderPayload) {
     const couponCode = text(payload.kode_kupon, 64, 'Kode kupon').toUpperCase();
     let discount = 0;
     if (couponCode) {
-      const coupon = validateCoupon(couponCode, subtotal);
+      const coupon = validateCoupon_(couponCode, subtotal);
       if (!coupon.success) throw new Error(coupon.message);
       discount = coupon.discountAmount;
       const couponSheet = ss.getSheetByName('coupons');
@@ -531,7 +514,7 @@ function createOrder(orderPayload) {
       items: items, kode_kupon: couponCode, diskon: discount,
       subtotal: subtotal, total_harga: total
     };
-    let waTarget = DEFAULT_WHATSAPP_NUMBER;
+    let waTarget = '';
     const settings = ss.getSheetByName('settings');
     if (settings && settings.getLastRow() > 1) {
       const data = settings.getDataRange().getDisplayValues();
@@ -545,7 +528,7 @@ function createOrder(orderPayload) {
     waTarget = waTarget.replace(/\D/g, '');
     if (waTarget.startsWith('0')) waTarget = '62' + waTarget.slice(1);
     if (!/^\d{8,15}$/.test(waTarget)) throw new Error('Nomor WhatsApp toko belum valid di settings.');
-    const orderHeaders = orders.getRange(1, 1, 1, orders.getLastColumn()).getDisplayValues()[0];
+    const orderHeaders = ensureOrderColumns_(orders);
     const required = ['id_pesanan', 'tgl_pesan', 'nama_pemesan', 'no_whatsapp', 'alamat', 'catatan', 'tipe_pengiriman', 'detail_produk', 'total_harga', 'status'];
     required.forEach(function(field) {
       if (!orderHeaders.includes(field)) throw new Error('Kolom orders belum lengkap: ' + field);
@@ -554,9 +537,11 @@ function createOrder(orderPayload) {
     const date = Utilities.formatDate(now, 'Asia/Jakarta', 'yyyyMMdd');
     const dateText = Utilities.formatDate(now, 'Asia/Jakarta', 'dd/MM/yyyy HH:mm:ss');
     const props = PropertiesService.getScriptProperties();
-    const counter = props.getProperty('LAST_ORDER_DATE') === date
+    let counter = props.getProperty('LAST_ORDER_DATE') === date
       ? Number(props.getProperty('ORDER_COUNTER') || 0) + 1 : 1;
     if (!Number.isSafeInteger(counter) || counter < 1) throw new Error('Nomor urut pesanan tidak valid.');
+    const existingIds = new Set(orders.getDataRange().getValues().slice(1).map(function(row) { return String(row[orderHeaders.indexOf('id_pesanan')]); }));
+    while (existingIds.has('TA-' + date + '-' + String(counter).padStart(3, '0'))) counter++;
     const orderId = 'TA-' + date + '-' + String(counter).padStart(3, '0');
     props.setProperty('LAST_ORDER_DATE', date);
     props.setProperty('ORDER_COUNTER', String(counter));
@@ -567,35 +552,32 @@ function createOrder(orderPayload) {
       id_pesanan: orderId, tgl_pesan: dateText, nama_pemesan: name,
       no_whatsapp: "'" + phone, alamat: summary.alamat, catatan: note || '-',
       tipe_pengiriman: delivery, detail_produk: JSON.stringify(items),
-      total_harga: total, status: 'Menunggu Konfirmasi Stok'
+      total_harga: total, status: 'Menunggu Konfirmasi Stok',
+      request_id:requestId, request_hash:requestHash, checkout_summary:JSON.stringify(summary), wa_target:waTarget,
+      subtotal:subtotal, diskon:discount, kode_kupon:couponCode
     };
+    if (values.checkout_summary.length > 45000 || values.detail_produk.length > 45000) throw new Error('Rincian pesanan terlalu panjang. Kurangi jumlah jenis produk.');
     const newRow = orderHeaders.map(function(header) {
       return Object.prototype.hasOwnProperty.call(values, header) ? cell(values[header]) : '';
     });
     if (quotaRange) quotaRange.setValue(previousQuota - 1);
     orders.appendRow(newRow);
     orderWritten = true;
-    let message = '*PESANAN BARU - TOKO ABANGDA*\n';
-    message += '*ID Pesanan:* ' + orderId + '\n*Tanggal:* ' + dateText + '\n';
-    message += '_Simpan ID pesanan ini untuk melacak pesanan._\n';
-    message += '*Nama:* ' + name + '\n*No. WA:* ' + phone + '\n';
-    message += '*Pengiriman:* ' + delivery + '\n';
-    if (summary.alamat) message += '*Alamat:* ' + summary.alamat + '\n';
-    message += '*Catatan:* ' + (note || '-') + '\n\n*RINCIAN ITEM:*\n';
-    items.forEach(function(item) {
-      message += '• ' + item.nama + (item.brand ? ' [' + item.brand + ']' : '') + ' (' + item.qty + 'x) = Rp ' + (item.harga * item.qty).toLocaleString('id-ID') + '\n';
-    });
-    message += '\nSubtotal: Rp ' + subtotal.toLocaleString('id-ID') + '\n';
-    if (couponCode) message += 'Diskon (' + couponCode + '): -Rp ' + discount.toLocaleString('id-ID') + '\n';
-    message += '*Estimasi total produk: Rp ' + total.toLocaleString('id-ID') + '*\n';
-    message += '_Mohon konfirmasi stok, ongkir jika ada, total akhir, dan cara pembayaran. Terima kasih!_';
-    return { success: true, orderId: orderId, waUrl: 'https://wa.me/' + waTarget + '?text=' + encodeURIComponent(message), summary: summary };
+    return checkoutResponse_(orderId, dateText, summary, waTarget);
   } catch (error) {
+    if (!orderWritten && orderSheet && requestId && requestHash) {
+      try {
+        const committed = replayCheckout_(orderSheet, requestId, requestHash);
+        if (committed) { orderWritten = true; return committed; }
+      } catch (lookupError) {
+        if (quotaRange) return {success:false,message:'Status penyimpanan belum dapat dipastikan. Coba kirim kembali tanpa mengubah data pesanan.'};
+      }
+    }
     if (quotaRange && previousQuota !== null && !orderWritten) {
       try { quotaRange.setValue(previousQuota); }
       catch (rollbackError) { console.error('Pemulihan kuota gagal: ' + rollbackError.message); }
     }
-    return { success: false, message: error.message || String(error) };
+    return { success: false, message: error.message || String(error), existingOrderId:error.existingOrderId || '' };
   } finally {
     if (locked) lock.releaseLock();
   }
@@ -607,6 +589,7 @@ function trackOrder(orderId) {
     message: 'ID pesanan tidak ditemukan. Periksa kembali ID pesanan Anda.'
   };
   try {
+    consumeBudget_('tracking', PUBLIC_LIMITS.tracking, 60);
     const id = String(orderId || '').trim().toUpperCase();
     if (!/^TA-\d{8}-\d{3,}$/.test(id)) return denied;
     const ss = SpreadsheetApp.getActiveSpreadsheet();

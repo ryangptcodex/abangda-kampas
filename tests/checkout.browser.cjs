@@ -27,10 +27,10 @@ const path = require('node:path');
  window.open=()=>{throw Error('Automatic popup must not be used');};
  </script>`;
  const root=path.join(__dirname,'..');
- let html=fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/<\?!= include\('js'\);?\s*\?>/,()=>mock+fs.readFileSync(path.join(root,'js.html'),'utf8'));
+ let html=fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/<\?!= include\('css'\);?\s*\?>/, '').replace(/<\?!= include\('js'\);?\s*\?>/,()=>mock+fs.readFileSync(path.join(root,'js.html'),'utf8'));
  // A trusted local stylesheet lets behavior run without external CDN connectivity.
- const css=fs.readFileSync(path.join(__dirname,'fixtures','tailwind.css'),'utf8');
- html=html.replace('</head>','<style>'+css+'</style></head>');
+ const css=fs.readFileSync(path.join(root,'css.html'),'utf8');
+ html=html.replace('</head>',css+'</head>');
  await page.setContent(html,{waitUntil:'domcontentloaded'});
  await page.waitForFunction(()=>document.querySelector('#homeProductsGrid').textContent.includes('Beras'));
  await page.evaluate(()=>toggleSidebar());

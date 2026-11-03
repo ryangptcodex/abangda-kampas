@@ -8,6 +8,7 @@ function onOpen(e) {
     .createMenu('🛒 Toko Abangda')
     .addItem('🔄 Perbarui Struktur Sheet', 'updateSheetStructure_')
     .addItem('💰 Siapkan Kolom Harga Grosir', 'prepareWholesaleColumns_')
+    .addItem('🔎 Periksa Data Produk', 'checkProductData_')
     .addSeparator()
     .addItem('📦 Buka Produk', 'openProductsSheet')
     .addItem('🗂️ Buka Kategori', 'openCategoriesSheet')
@@ -572,7 +573,7 @@ function databaseSchemas_() {
       'tipe_pengiriman',
       'detail_produk',
       'total_harga',
-      'status'
+      'status', 'request_id', 'request_hash', 'checkout_summary', 'wa_target', 'subtotal', 'diskon', 'kode_kupon'
     ],
     coupons: [
       'kode_kupon',

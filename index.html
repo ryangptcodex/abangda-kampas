@@ -2,39 +2,12 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Toko Abangda - Kebutuhan Harian Lebih Mudah</title>
   
-  <!-- CSS dan font -->
-
-  
-  <!-- Fallback CDN untuk Preview Langsung di Canvas / Browser Lokal -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap" rel="stylesheet">
+  <?!= include('css'); ?>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  
-  <script>
-    if (typeof tailwind !== 'undefined') {
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              brand: {
-                blue: '#0284c7',
-                darkblue: '#0369a1',
-                yellow: '#facc15',
-                accent: '#eab308'
-              }
-            },
-            fontFamily: {
-              sans: ['"Montserrat"', 'sans-serif'],
-              montserrat: ['"Montserrat"', 'sans-serif']
-            }
-          }
-        }
-      };
-    }
-  </script>
   <style>
     body, input, button, select, textarea { font-family: 'Montserrat', sans-serif !important; }
     .fa, .fas, .fa-solid, .far, .fa-regular { font-family: "Font Awesome 6 Free" !important; }

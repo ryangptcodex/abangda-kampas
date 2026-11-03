@@ -4,6 +4,12 @@ Tanggal: 3 November 2026 (Asia/Jakarta). Kode yang diperiksa: commit `2bc6a9d314
 
 **Penilaian: belum siap untuk launch publik penuh.** Layak dilanjutkan ke perbaikan dan uji terbatas. Alur normal berjalan dalam simulasi, tetapi masih ada masalah reproduktif pada katalog, checkout, pencarian, dan pencatatan transaksi. Audit ini tidak mengubah kode aplikasi atau sheet asli.
 
+## Status setelah paket perbaikan wajib
+
+Enam temuan bagian 1 sudah mendapat perbaikan kode dan uji regresi: retry checkout dengan kunci yang disimpan bersama order, respons kategori/pencarian berurutan, render data/URL yang aman, pemisahan produk rusak dan baris kosong, pembatasan server dasar, serta CSS produksi yang dibundel. Subtotal/diskon/kupon juga sudah disimpan dan benturan ID setelah reset counter dicegah. Lihat [README](README.md) untuk pemasangan kelima file lengkap dan batas perilaku terbaru. Uraian temuan awal di bawah dipertahankan sebagai catatan kondisi saat audit; pernyataan “belum diperbaiki” pada ringkasan awal bukan status kode terbaru.
+
+Status produksi tetap belum terverifikasi. Pengembalian kuota saat pembatalan manual, ID tracking acak, pemeriksaan operasional/deployment/domain dan uji perangkat nyata belum dikerjakan. Pembatasan CacheService adalah pengendalian dasar yang bisa dipengaruhi eviksi cache, bukan anti-DDoS. Transaksi lintas-sheet belum atomik walaupun retry normal dan penulisan yang responsnya hilang sudah ditangani.
+
 ## Batas pemeriksaan
 
 Yang diperiksa: `index.html`, `js.html`, `code.gs`, `setup.gs`, skema tujuh sheet, dokumentasi, serta pengujian backend dan browser. Sebanyak 48 pemeriksaan backend, pengujian migrasi, dan empat suite browser yang sudah tersedia kembali lolos.

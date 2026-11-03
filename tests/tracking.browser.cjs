@@ -29,9 +29,9 @@ const { fixture } = require('./helpers/apps-script.cjs');
       window.google = {script:{run:{withSuccessHandler(success){return {withFailureHandler(failure){return new Proxy({}, {get(_,method){return (...args)=>window.__testServer(method,args).then(success,failure).finally(()=>window.completedServerCalls++);}});}};}}}};
     </script>`;
     const root = path.join(__dirname,'..');
-    let html = fs.readFileSync(path.join(root,'index.html'),'utf8')
+    let html = fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/<\?!= include\('css'\);?\s*\?>/, '')
       .replace(/<\?!= include\('js'\);?\s*\?>/, () => bridge + fs.readFileSync(path.join(root,'js.html'),'utf8'))
-      .replace('</head>', '<style>'+fs.readFileSync(path.join(__dirname,'fixtures','tailwind.css'),'utf8')+'</style></head>');
+      .replace('</head>', fs.readFileSync(path.join(root,'css.html'),'utf8')+'</head>');
     await page.setContent(html,{waitUntil:'domcontentloaded'});
     await page.waitForFunction(() => document.getElementById('homeProductsGrid').textContent.includes('Beras'));
     await page.evaluate(() => {quickAddToCart('P-192ec98f396e31558ddd98275a10a062770b74728ce6f434f3c0489c10d43b49','Beras',34500,10,'','Abangda');switchTab('checkout');});
