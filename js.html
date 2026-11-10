@@ -1502,7 +1502,7 @@ function submitCheckout() {
     const categoryBar = document.getElementById('filterCategoryPills');
     if (categoryBar) categoryBar.classList.toggle('hidden', tab !== 'katalog');
 
-    const pages = ['Home', 'Katalog', 'Checkout', 'Lacak', 'CaraOrder'];
+    const pages = ['Home', 'Katalog', 'Checkout', 'Lacak', 'CaraOrder', 'Admin'];
     pages.forEach(function(p) {
       const el = document.getElementById('page' + p);
       if (el) el.classList.add('hidden');
@@ -1510,6 +1510,7 @@ function submitCheckout() {
 
     const activeEl = document.getElementById('page' + tab.charAt(0).toUpperCase() + tab.slice(1));
     if (activeEl) activeEl.classList.remove('hidden');
+    if (tab === 'admin') document.getElementById('adminTitle').focus({preventScroll:true});
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
