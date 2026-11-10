@@ -1514,4 +1514,92 @@ function submitCheckout() {
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
+
+  // Session is memory-only: reload requires login and never persists customer data.
+  let adminToken = '', adminGeneration = 0, adminPage = 1, adminExpiryTimer;
+  function adminMessage_(text) { document.getElementById('adminMessage').textContent = text; }
+  function clearAdminSession_() {
+    adminGeneration++; adminToken=''; clearTimeout(adminExpiryTimer);
+    document.getElementById('adminPanel').classList.add('hidden');
+    document.getElementById('adminLoginForm').classList.remove('hidden');
+    ['adminOrders','adminPagination','adminOrderDetail'].forEach(id=>document.getElementById(id).replaceChildren());
+    document.getElementById('adminPassword').value='';
+  }
+  function adminCall_(method,args,callback) {
+    const generation=adminGeneration;
+    safeRun(method,function(res){
+      if(generation!==adminGeneration)return;
+      if(!res.success){
+        if(/Sesi admin/.test(res.message||''))clearAdminSession_();
+        adminMessage_(res.message||'Permintaan gagal.');return;
+      }
+      callback(res);
+    },adminToken,...args);
+  }
+  function submitAdminLogin(event) {
+    event.preventDefault();
+    const button=document.getElementById('adminLoginSubmit');if(button.disabled)return;
+    button.disabled=true;adminMessage_('Memeriksa login...');
+    const password=document.getElementById('adminPassword'),value=password.value;password.value='';
+    const generation=adminGeneration;
+    safeRun('adminLogin',function(res){
+      button.disabled=false;if(generation!==adminGeneration)return;
+      if(!res.success){adminMessage_(res.message||'Login gagal.');return;}
+      adminToken=res.token;adminGeneration++;
+      document.getElementById('adminLoginForm').classList.add('hidden');
+      document.getElementById('adminPanel').classList.remove('hidden');
+      adminExpiryTimer=setTimeout(function(){clearAdminSession_();adminMessage_('Sesi admin berakhir. Silakan login kembali.');},Math.max(0,res.expiresAt-Date.now()));
+      adminMessage_('Berhasil masuk sebagai '+res.username+'.');loadAdminOrders(1);
+    },document.getElementById('adminUsername').value,value);
+  }
+  function logoutAdmin() {
+    const token=adminToken;clearAdminSession_();adminMessage_('Anda sudah keluar.');
+    safeRun('adminLogout',function(){},token);
+  }
+  function adminButton_(text,handler) {
+    const button=node_('button','text-xs font-bold text-brand-blue',text);button.type='button';button.onclick=handler;return button;
+  }
+  function loadAdminOrders(page,afterLoad) {
+    adminCall_('adminOrders',[page],function(res){
+      adminPage=res.page;
+      const list=document.getElementById('adminOrders');list.replaceChildren();
+      document.getElementById('adminOrderDetail').replaceChildren();
+      if(!res.orders.length)list.append(node_('p','text-xs text-slate-500','Belum ada pesanan.'));
+      res.orders.forEach(function(order){
+        const card=node_('div','bg-white p-4 rounded-2xl border border-slate-100 space-y-3');
+        card.append(node_('p','text-xs font-bold',order.id_pesanan+' — '+order.nama_pemesan),node_('p','text-xs text-slate-600',order.tgl_pesan+' · '+order.status),adminButton_('Lihat & Kelola',()=>openAdminOrder(order.id_pesanan)));list.append(card);
+      });
+      const pagination=document.getElementById('adminPagination');pagination.replaceChildren();
+      if(res.page>1)pagination.append(adminButton_('Sebelumnya',()=>loadAdminOrders(res.page-1)));
+      pagination.append(node_('span','text-xs',res.page+' / '+res.pages));
+      if(res.page<res.pages)pagination.append(adminButton_('Berikutnya',()=>loadAdminOrders(res.page+1)));
+      if(afterLoad)afterLoad();
+    });
+  }
+  function openAdminOrder(id) {
+    adminCall_('adminOrderDetail',[id],function(res){
+      const order=res.order,box=document.getElementById('adminOrderDetail');box.replaceChildren();
+      box.append(node_('h3','text-sm font-bold',order.id_pesanan),node_('p','text-xs',order.nama_pemesan+' · '+order.no_whatsapp),node_('p','text-xs',order.tipe_pengiriman+' · '+order.alamat),node_('p','text-xs','Catatan: '+order.catatan));
+      order.items.forEach(item=>box.append(node_('p','text-xs',item.nama+' — '+item.qty+' '+(item.satuan||'pcs')+' × Rp '+Number(item.harga).toLocaleString('id-ID'))));
+      box.append(node_('p','text-xs font-bold','Total produk: Rp '+Number(order.total_harga).toLocaleString('id-ID')),node_('p','text-xs',order.status+' · '+order.status_pembayaran));
+      box.append(node_('p','text-xs',order.agreement_state==='confirmed'?'Total akhir: Rp '+Number(order.total_final).toLocaleString('id-ID'):'Total akhir belum dikonfirmasi.'));
+      const form=node_('form','space-y-3');
+      const label=node_('label','text-xs','Ongkir (rupiah, tanpa titik)');label.htmlFor='adminShipping';
+      const shipping=document.createElement('input');shipping.id='adminShipping';shipping.type='number';shipping.min='0';shipping.step='1';shipping.required=true;shipping.value=order.ongkir||'0';shipping.className='w-full border border-slate-200 rounded-xl px-3 py-2 text-sm';
+      const paymentLabel=node_('label','text-xs','Pembayaran');paymentLabel.htmlFor='adminPayment';
+      const payment=document.createElement('select');payment.id='adminPayment';payment.className=shipping.className;
+      ['Belum Bayar','Lunas'].forEach(text=>{const option=node_('option','',text);option.value=text;payment.append(option);});payment.value=order.status_pembayaran==='Lunas'?'Lunas':'Belum Bayar';
+      const save=adminButton_('Simpan Ongkir & Pembayaran',()=>{});save.type='submit';
+      form.append(label,shipping,paymentLabel,payment,save);form.onsubmit=function(event){event.preventDefault();if(confirm('Simpan ongkir dan status pembayaran untuk '+id+'?'))updateAdminOrder_(id,'agreement',shipping.value,payment.value);};
+      if(order.status!=='Pesanan Dibatalkan'){
+        box.append(form,adminButton_('Batalkan Pesanan',()=>{if(confirm('Batalkan '+id+'? Kuota voucher akan dikembalikan sesuai catatan transaksi.'))updateAdminOrder_(id,'cancel');}));
+      }else if(['Lunas','Perlu Pengembalian'].includes(order.status_pembayaran)){
+        box.append(adminButton_('Catat Dana Sudah Dikembalikan',()=>{if(confirm('Pastikan uang sudah dikembalikan secara manual. Lanjutkan pencatatan?'))updateAdminOrder_(id,'refund');}));
+      }
+    });
+  }
+  function updateAdminOrder_(id,action,shipping,payment) {
+    adminMessage_('Menyimpan...');
+    adminCall_('adminUpdateOrder',[id,action,shipping||'',payment||''],function(res){adminMessage_(res.message);loadAdminOrders(adminPage,()=>openAdminOrder(id));});
+  }
 </script>

@@ -7,6 +7,7 @@ function onOpen(e) {
   SpreadsheetApp.getUi()
     .createMenu('🛒 Toko Abangda')
     .addItem('🚀 Perbarui Semua', 'perbaruiSemua')
+    .addItem('🔐 Atur Akun Admin Web', 'configureWebAdmin_')
     .addSeparator()
     .addItem('🔄 Perbarui Struktur Sheet', 'updateSheetStructure_')
     .addItem('💰 Siapkan Kolom Harga Grosir', 'prepareWholesaleColumns_')
@@ -803,4 +804,17 @@ function onEdit(e) {
       try{ensureOrderColumns_(sheet);const current=findOrderRow_(sheet,'id_pesanan',id);appendOrderEvent_(sheet,current,{at:orderTime_(),status:String(orderValue_(current,'status')),event:'Status diubah pengelola'});}finally{lock.releaseLock();}
     }
   }catch(error){try{e.source.toast('Perubahan perlu diperiksa: '+error.message);}catch(_){} }
+}
+
+// Private: cannot be invoked by google.script.run from the public web app.
+function configureWebAdmin_() {
+  const ui=SpreadsheetApp.getUi();
+  try {
+    const user=ui.prompt('Akun Admin Web','Username (3–64 karakter). Mengganti akun akan mengakhiri seluruh sesi admin.',ui.ButtonSet.OK_CANCEL);
+    if(user.getSelectedButton()!==ui.Button.OK)return;
+    const password=ui.prompt('Password Admin Web','Password minimal 12 karakter. Input dialog ini terlihat di layar; lakukan secara privat. Password disimpan sebagai hash, bukan teks asli.',ui.ButtonSet.OK_CANCEL);
+    if(password.getSelectedButton()!==ui.Button.OK)return;
+    adminSetCredentials_(user.getResponseText(),password.getResponseText());
+    ui.alert('Akun admin web berhasil disetel. Login melalui menu Admin di webapp.');
+  }catch(error){ui.alert(error.message);}
 }

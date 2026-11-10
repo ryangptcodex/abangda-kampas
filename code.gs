@@ -868,3 +868,95 @@ function recoverPendingCheckout_() {
   }
   props.deleteProperty('ABANGDA_CHECKOUT_V1');
 }
+
+// Admin credentials stay in Script Properties. Only private spreadsheet functions configure them.
+function adminPasswordHash_(password, salt) {
+  // PBKDF2-HMAC-SHA256, one 256-bit block; bounded for Apps Script execution.
+  const key=Utilities.newBlob(password).getBytes();
+  const input=Utilities.newBlob(salt).getBytes().concat([0,0,0,1]);
+  let block=Utilities.computeHmacSha256Signature(input,key),result=block.slice();
+  for(let i=1;i<20000;i++){
+    block=Utilities.computeHmacSha256Signature(block,key);
+    for(let j=0;j<result.length;j++)result[j]=(result[j]^block[j]);
+  }
+  return result.map(byte=>(byte&255).toString(16).padStart(2,'0')).join('');
+}
+function adminEqual_(a,b) {
+  a=String(a);b=String(b);let diff=a.length^b.length;
+  for(let i=0;i<Math.max(a.length,b.length);i++)diff|=(a.charCodeAt(i)||0)^(b.charCodeAt(i)||0);
+  return diff===0;
+}
+function adminSetCredentials_(username,password) {
+  username=String(username||'').trim();password=String(password||'');
+  if(!/^[A-Za-z0-9_.-]{3,64}$/.test(username))throw new Error('Username 3–64 karakter: huruf, angka, titik, garis bawah atau tanda hubung.');
+  if(password.length<12||password.length>128)throw new Error('Password harus 12–128 karakter.');
+  const salt=Utilities.getUuid(),record={username:username,salt:salt,hash:adminPasswordHash_(password,salt),version:Utilities.getUuid()};
+  PropertiesService.getScriptProperties().setProperty('ABANGDA_ADMIN_V1',JSON.stringify(record));
+}
+function adminLogin(username,password) {
+  const lock=LockService.getScriptLock();let locked=false;
+  try {
+    if(!lock.tryLock(15000))throw new Error('Login sedang sibuk. Coba kembali.');locked=true;
+    const cache=CacheService.getScriptCache(),key='admin-login-attempts',used=Number(cache.get(key)||0);
+    if(used>=10)throw new Error('Terlalu banyak percobaan login. Tunggu 15 menit.');
+    cache.put(key,String(used+1),900);
+    const raw=PropertiesService.getScriptProperties().getProperty('ABANGDA_ADMIN_V1');
+    if(!raw)throw new Error('Akun admin belum disetel. Gunakan menu Atur Akun Admin Web di Spreadsheet.');
+    const config=JSON.parse(raw);
+    if(typeof password!=='string'||password.length>128||typeof username!=='string'||username.length>64)throw new Error('Username atau password salah.');
+    const hash=adminPasswordHash_(password,config.salt);
+    if(!adminEqual_(username.trim(),config.username)||!adminEqual_(hash,config.hash))throw new Error('Username atau password salah.');
+    const token=Utilities.getUuid().replace(/-/g,'')+Utilities.getUuid().replace(/-/g,'');
+    const expiresAt=Date.now()+3600000;
+    cache.put('admin-session:'+sha256_(token),JSON.stringify({version:config.version,expiresAt:expiresAt}),3600);
+    return {success:true,token:token,expiresAt:expiresAt,username:config.username};
+  }catch(error){return {success:false,message:error.message};}finally{if(locked)lock.releaseLock();}
+}
+function requireAdmin_(token) {
+  if(typeof token!=='string'||!/^[a-f0-9]{64}$/.test(token))throw new Error('Sesi admin berakhir. Silakan login kembali.');
+  const raw=CacheService.getScriptCache().get('admin-session:'+sha256_(token));
+  const config=PropertiesService.getScriptProperties().getProperty('ABANGDA_ADMIN_V1');
+  if(!raw||!config)throw new Error('Sesi admin berakhir. Silakan login kembali.');
+  const session=JSON.parse(raw);
+  if(session.expiresAt<=Date.now()||session.version!==JSON.parse(config).version)throw new Error('Sesi admin berakhir. Silakan login kembali.');
+}
+function adminLogout(token) {
+  if(typeof token==='string'&&/^[a-f0-9]{64}$/.test(token))CacheService.getScriptCache().remove('admin-session:'+sha256_(token));
+  return {success:true};
+}
+function adminOrders(token,page) {
+  try {
+    requireAdmin_(token);
+    const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('orders');
+    const count=Math.max(0,sheet.getLastRow()-1),pages=Math.max(1,Math.ceil(count/20));
+    page=Math.min(pages,Math.max(1,Math.floor(Number(page)||1)));
+    const end=count-(page-1)*20,n=Math.min(20,end);
+    const headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getDisplayValues()[0];
+    const rows=n?sheet.getRange(end-n+2,1,n,headers.length).getDisplayValues().reverse():[];
+    const fields=['id_pesanan','tgl_pesan','nama_pemesan','status','total_harga','status_pembayaran'];
+    return {success:true,page:page,pages:pages,orders:rows.map(function(row){const item={};fields.forEach(k=>item[k]=row[headers.indexOf(k)]||'');return item;})};
+  }catch(error){return {success:false,message:error.message};}
+}
+function adminOrderDetail(token,id) {
+  try {
+    requireAdmin_(token);if(!validOrderId_(id))throw new Error('ID pesanan tidak valid.');
+    const found=findOrderRow_(SpreadsheetApp.getActiveSpreadsheet().getSheetByName('orders'),'id_pesanan',id);
+    if(!found)throw new Error('Pesanan tidak ditemukan.');
+    const order={};['id_pesanan','tgl_pesan','nama_pemesan','no_whatsapp','alamat','catatan','tipe_pengiriman','status','total_harga','subtotal','diskon','ongkir','total_final','status_pembayaran','agreement_state'].forEach(k=>order[k]=String(orderValue_(found,k)||''));
+    order.items=JSON.parse(orderValue_(found,'detail_produk')||'[]');
+    return {success:true,order:order};
+  }catch(error){return {success:false,message:error.message};}
+}
+function adminUpdateOrder(token,id,action,shipping,payment) {
+  try {
+    requireAdmin_(token);if(!validOrderId_(id))throw new Error('ID pesanan tidak valid.');
+    let message;
+    if(action==='agreement') {
+      if(!/^\d+$/.test(String(shipping)))throw new Error('Ongkir harus angka rupiah tanpa titik.');
+      message=recordOrderAgreement_(id,Number(shipping),payment);
+    } else if(action==='cancel')message=cancelOrderById_(id);
+    else if(action==='refund')message=markMoneyReturned_(id);
+    else throw new Error('Tindakan tidak dikenal.');
+    return {success:true,message:message};
+  }catch(error){return {success:false,message:error.message};}
+}
